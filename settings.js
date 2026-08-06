@@ -84,6 +84,28 @@
     });
   }
 
+  /**
+   * 根据通道类型/名称返回 API Key 获取地址提示
+   * @param {Object} ch 通道对象
+   * @returns {string} 提示文本
+   */
+  function getChannelApiKeyHint(ch) {
+    if (ch.type === "agnes") {
+      return 'API Key 获取：<a href="https://agnes-ai.cn" target="_blank" rel="noopener">agnes-ai.cn</a>（国内站）/ <a href="https://agnes-ai.com" target="_blank" rel="noopener">agnes-ai.com</a>（国际站）';
+    }
+    if (ch.type === "openai_images") {
+      var name = (ch.name || "").toLowerCase();
+      if (name.indexOf("中转") !== -1) {
+        return 'API Key 获取：<a href="https://apimart.ai/" target="_blank" rel="noopener">apimart.ai</a>（需魔法）';
+      }
+      if (name.indexOf("wawapii") !== -1) {
+        return 'API Key 获取：<a href="https://wawapi.top/" target="_blank" rel="noopener">wawapi.top</a>（需魔法）';
+      }
+      return "API Key 获取：请到你的 API 服务商后台获取";
+    }
+    return "";
+  }
+
   function renderChannelCard(ch) {
     var typeOptions = CHANNEL_TYPES.map(function (t) {
       return '<option value="' + t.value + '"' + (ch.type === t.value ? " selected" : "") + ">" + escapeHtml(t.label) + "</option>";
@@ -138,6 +160,7 @@
       + '  <div class="ch-field-row">'
       + '    <label class="ch-field-label">API Key</label>'
       + '    <input class="text-input ch-apikey-input" type="password" value="' + escapeHtml(ch.apiKey || "") + '" placeholder="输入 API Key" data-field="apiKey" />'
+      + '    <p class="ch-field-note">' + getChannelApiKeyHint(ch) + '</p>'
       + '  </div>'
       // 模型名
       + '  <div class="ch-field-row">'
@@ -698,7 +721,7 @@
       + '  <div class="ch-field-row">'
       + '    <label class="ch-field-label">API Key</label>'
       + '    <input class="text-input ch-provider-apikey" type="password" value="' + escapeHtml(provider.apiKey || "") + '" placeholder="输入 API Key" data-provider-field="apiKey" />'
-      + '    <p class="ch-field-note">' + escapeHtml(apiKeyHint) + '</p>'
+      + '    <p class="ch-field-note">' + apiKeyHint + '</p>'
       + '  </div>'
       // 模型名
       + '  <div class="ch-field-row">'

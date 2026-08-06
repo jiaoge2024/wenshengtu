@@ -838,6 +838,14 @@ kbd {
   color: var(--muted, #888);
   margin: 2px 0 0;
 }
+.ch-field-note a {
+  color: var(--accent-2, #4f7f78);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.ch-field-note a:hover {
+  color: var(--accent, #cc6d49);
+}
 
 .ch-card-actions {
   display: flex;

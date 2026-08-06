@@ -242,14 +242,14 @@
       name: "DeepSeek",
       format: "openai",
       baseUrl: "https://api.deepseek.com/v1",
-      apiKeyHint: "在 DeepSeek 开放平台（platform.deepseek.com）后台获取 API Key"
+      apiKeyHint: 'API Key 获取：<a href="https://platform.deepseek.com/" target="_blank" rel="noopener">platform.deepseek.com</a>'
     },
     {
       id: "MiniMax",
       name: "MiniMax",
       format: "openai",
       baseUrl: "https://api.minimax.chat/v1",
-      apiKeyHint: "在 MiniMax 开放平台（MiniMax.ai）后台获取 API Key"
+      apiKeyHint: 'API Key 获取：<a href="https://www.minimaxi.com/" target="_blank" rel="noopener">minimaxi.com</a>'
     },
     {
       id: "custom",
