@@ -1263,54 +1263,18 @@ kbd {
   font-size: 0.84rem;
 }
 
-/* ===== 语法提示条 ===== */
-
-.template-syntax-hint {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  margin-top: 8px;
-  padding: 10px 14px;
-  border: 1px solid rgba(79, 127, 120, 0.14);
-  border-radius: 10px;
-  background: rgba(79, 127, 120, 0.04);
-  font-size: 0.84rem;
-  line-height: 1.55;
-  color: var(--ink);
-}
-
-.template-syntax-hint code {
-  padding: 1px 6px;
-  border-radius: 4px;
-  background: rgba(204, 109, 73, 0.1);
-  color: var(--accent);
-  font-family: "Consolas", monospace;
-  font-size: 0.88em;
-}
-
-.syntax-hint-icon {
-  flex-shrink: 0;
-  font-size: 16px;
-  line-height: 1.4;
-}
-
-.syntax-hint-text {
-  flex: 1;
-  min-width: 0;
-}
-
 /* ===== 批量模板变量 ===== */
 
 .batch-template-section {
-  margin-top: 6px;
+  margin-top: 4px;
 }
 
 /* ===== 模板示例引导块 ===== */
 
 .template-guide {
   display: grid;
-  gap: 8px;
-  padding: 12px 14px;
+  gap: 6px;
+  padding: 8px 12px;
   border: 1px solid rgba(55, 37, 16, 0.06);
   border-radius: 10px;
   background: rgba(255, 253, 248, 0.5);
@@ -1318,41 +1282,57 @@ kbd {
 
 .template-guide-row {
   display: flex;
-  align-items: flex-start;
-  gap: 10px;
+  align-items: center;
+  gap: 8px;
   min-width: 0;
 }
 
 .template-guide-tag {
   flex-shrink: 0;
-  padding: 3px 8px;
+  padding: 2px 8px;
   border-radius: 6px;
   background: rgba(204, 109, 73, 0.1);
   color: var(--accent);
-  font-size: 0.78rem;
+  font-size: 0.76rem;
   font-weight: 600;
   white-space: nowrap;
 }
 
 .template-guide-code {
-  flex: 1;
+  flex: 1 1 auto;
   min-width: 0;
-  padding: 4px 8px;
+  padding: 3px 8px;
   border-radius: 6px;
   background: rgba(36, 25, 17, 0.04);
   color: var(--ink);
   font-family: "Consolas", monospace;
-  font-size: 0.82rem;
-  line-height: 1.5;
+  font-size: 0.8rem;
+  line-height: 1.4;
   word-break: break-all;
+}
+
+.template-guide-note {
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: var(--muted);
+  padding: 2px 4px;
+}
+
+.template-guide-note code {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(36, 25, 17, 0.06);
+  font-family: "Consolas", monospace;
+  font-size: 0.92em;
+  color: var(--ink);
 }
 
 .template-body {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 12px;
-  margin-top: 10px;
-  padding: 12px 14px;
+  gap: 10px;
+  margin-top: 8px;
+  padding: 10px 12px;
   border: 1px solid rgba(55, 37, 16, 0.06);
   border-radius: 12px;
   background: rgba(255, 253, 248, 0.35);

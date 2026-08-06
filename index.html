@@ -168,26 +168,19 @@
                   placeholder="每段提示词之间空一行。每一段都会按顺序单独生成一张图片。"
                   rows="9"
                 ></textarea>
-                <div class="helper-text">用空行分隔多段提示词，系统会顺序逐张生成，每次间隔 1 到 2 秒。</div>
-                <div class="template-syntax-hint" id="template-syntax-hint">
-                  <span class="syntax-hint-icon">💡</span>
-                  <span class="syntax-hint-text">支持模板变量：在提示词中写 <code>{变量名}</code> 即可触发，例如 <code>一只{动物}在{场景}里玩耍</code>，点下方按钮填入变量值一键展开为多条。</span>
-                </div>
+                <div class="helper-text">用空行分隔多段提示词，系统会顺序逐张生成。支持 <code>{变量}</code> 模板（逗号分隔多变量）。</div>
                 <div class="batch-template-section">
                   <div class="template-body" id="template-body">
                     <div class="template-guide">
                       <div class="template-guide-row">
-                        <span class="template-guide-tag">① 写模板</span>
+                        <span class="template-guide-tag">① 模板</span>
                         <code class="template-guide-code">一只{动物}在{场景}里玩耍</code>
                       </div>
                       <div class="template-guide-row">
-                        <span class="template-guide-tag">② 填变量</span>
-                        <code class="template-guide-code">小猫,客厅<br>小狗,公园</code>
+                        <span class="template-guide-tag">② 值</span>
+                        <code class="template-guide-code">小猫,客厅 / 小狗,公园</code>
                       </div>
-                      <div class="template-guide-row">
-                        <span class="template-guide-tag">③ 结果</span>
-                        <code class="template-guide-code">一只小猫在客厅里玩耍<br>一只小狗在公园里玩耍</code>
-                      </div>
+                      <div class="template-guide-note">⚠ 只有 <code>{变量}</code> 这种半角大括号才会被识别为变量，<code>【变量】</code> <code>（变量）</code> 及其它符号无效</div>
                     </div>
                     <div class="template-field">
                       <label class="field-label" for="template-values">变量值（每行一组，逗号分隔多个变量）</label>
