@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>使用说明 · 图生图长 · AI创作台</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body class="help-page">
+    <div class="help-shell">
+
+      <header class="help-hero panel">
+        <div class="help-hero-text">
+          <p class="eyebrow">User Guide</p>
+          <h1 class="help-title">使用说明</h1>
+          <p class="help-subtitle">从零开始，上手图生图长 · AI创作台</p>
+        </div>
+        <div class="help-hero-links">
+          <a class="nav-link" href="./index.html">← 返回创作台</a>
+        </div>
+      </header>
+
+      <!-- 目录 -->
+      <nav class="help-toc panel">
+        <div class="toc-header">
+          <span class="eyebrow">Contents</span>
+          <span class="toc-count">共 6 节</span>
+        </div>
+        <ol class="toc-list">
+          <li><a href="#quickstart">快速开始 — 配置 API Key</a></li>
+          <li><a href="#text-to-image">文生图 — 用文字生成图片</a></li>
+          <li><a href="#batch">批量生图 — 一次生成多张</a></li>
+          <li><a href="#template">模板变量 — 批量更省力</a></li>
+          <li><a href="#prompt-library">提示词库 — 收藏与复用</a></li>
+          <li><a href="#gallery">图片库与记录管理</a></li>
+        </ol>
+      </nav>
+
+      <!-- 1. 快速开始 -->
+      <section class="help-section panel" id="quickstart">
+        <div class="section-badge">1</div>
+        <div class="section-body">
+          <h2>快速开始 — 配置 API Key</h2>
+          <p class="section-lede">使用前需要在「通道设置」中填入 API Key，否则无法生成图片。</p>
+
+          <div class="step-list">
+            <div class="step-item">
+              <div class="step-num">❶</div>
+              <div class="step-content">
+                <h3>打开通道设置</h3>
+                <p>点击左侧面板的「<strong>通道设置</strong>」链接，进入设置页面。</p>
+              </div>
+            </div>
+            <div class="step-item">
+              <div class="step-num">❷</div>
+              <div class="step-content">
+                <h3>获取生图 API Key</h3>
+                <p>在「生图通道」中新增或启用一个通道，填入你所用中转站/服务商分配的 API Key、Base URL 和模型名（如 GPT-Image-2、Wan 2.7 等），然后点击「保存」。</p>
+              </div>
+            </div>
+            <div class="step-item">
+              <div class="step-num">❸</div>
+              <div class="step-content">
+                <h3>（可选）配置 AI 助手模型</h3>
+                <p>如需使用「一键优化提示词」功能，在「AI 助手模型」中展开某个平台卡片（DeepSeek / MiniMax / 其他服务），各平台独立填写接口地址、API Key 和模型名，然后选中「<strong>设为当前使用</strong>」并保存。填什么就是什么，模型名可自由输入。</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="tip-box">
+            <strong>💡 提示：</strong>API Key 会安全保存在当前浏览器中，下次打开还在。生图通道与 AI 助手模型使用独立的 API Key，可共用同一个 Key 或分开管理。“一键优化”使用哪个平台，取决于你在 AI 助手模型卡片中勾选了哪个「设为当前使用」。</div>
+        </div>
+      </section>
+
+      <!-- 2. 文生图 -->
+      <section class="help-section panel" id="text-to-image">
+        <div class="section-badge">2</div>
+        <div class="section-body">
+          <h2>文生图 — 用文字生成图片</h2>
+          <p class="section-lede">最常用的模式。输入一段描述文字，AI 帮你画出对应画面。</p>
+
+          <div class="step-list compact">
+            <div class="step-item">
+              <div class="step-num">❶</div>
+              <div class="step-content">
+                <h3>选择模型</h3>
+                <p>在左侧「生成控制台」顶部，从下拉框选择已启用的生图通道模型（如 GPT-Image 中转模型、Agnes Image 等）。具体模型可在设置页通道中切换。</p>
+              </div>
+            </div>
+            <div class="step-item">
+              <div class="step-num">❷</div>
+              <div class="step-content">
+                <h3>选择比例与质量</h3>
+                <p>设置图片比例（1:1 / 3:4 / 4:3 / 9:16 / 16:9 / 21:9）和清晰度（1K / 2K / 4K）。竖版内容建议选 <strong>3:4</strong>，横版选 <strong>16:9</strong>。</p>
+              </div>
+            </div>
+            <div class="step-item">
+              <div class="step-num">❸</div>
+              <div class="step-content">
+                <h3>选择风格（可选）</h3>
+                <p>从「风格模板」中挑选预设风格：写实摄影、海报视觉、数字插画、水彩手绘、3D 物料、东方美学。也可以选「无」让 AI 自由发挥。</p>
+              </div>
+            </div>
+            <div class="step-item">
+              <div class="step-num">❹</div>
+              <div class="step-content">
+                <h3>输入提示词</h3>
+                <p>在输入框中描述你想要的画面。越详细越好，例如：</p>
+                <div class="example-block">
+                  <p class="example-label">✅ 好的例子：</p>
+                  <p class="example-text">一只橘猫躺在午后阳光照射的木地板上，身边散落着几本书，温馨的家庭氛围，照片级写实风格</p>
+                  <p class="example-label">❌ 不太好的例子：</p>
+                  <p class="example-text">一只猫</p>
+                </div>
+                <p>也可以点「<strong>随机生图</strong>」让系统自动填入一个随机提示词试试效果。</p>
+              </div>
+            </div>
+            <div class="step-item">
+              <div class="step-num">❺</div>
+              <div class="step-content">
+                <h3>开始生成</h3>
+                <p>点击「<strong>开始创作</strong>」按钮，或按 <kbd>Ctrl</kbd> + <kbd>Enter</kbd>。图片会在右侧预览区显示，自动保存到本地图库。</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 3. 批量生图 -->
+      <section class="help-section panel" id="batch">
+        <div class="section-badge">3</div>
+        <div class="section-body">
+          <h2>批量生图 — 一次生成多张</h2>
+          <p class="section-lede">一次性输入多段提示词，系统按顺序逐一生成，生成完一张自动接着下一张。</p>
+
+          <div class="step-list compact">
+            <div class="step-item">
+              <div class="step-num">❶</div>
+              <div class="step-content">
+                <h3>切换到批量模式</h3>
+                <p>点击模式选择中的「<strong>批量</strong>」，输入框会变成批量提示词输入框。</p>
+              </div>
+            </div>
+            <div class="step-item">
+              <div class="step-num">❷</div>
+              <div class="step-content">
+                <h3>输入多段提示词</h3>
+                <p>每段提示词之间用<strong>空行</strong>分隔。例如：</p>
+                <div class="example-block">
+                  <p class="example-text">一只橘猫在阳光下午睡，写实风格</p>
+                  <div class="example-blank-line"></div>
+                  <p class="example-text">一只黑猫在月光下散步，神秘氛围</p>
+                  <div class="example-blank-line"></div>
+                  <p class="example-text">一只白猫在花丛中玩耍，清新插画</p>
+                </div>
+              </div>
+            </div>
+            <div class="step-item">
+              <div class="step-num">❸</div>
+              <div class="step-content">
+                <h3>检查队列</h3>
+                <p>下方「队列预览」会显示所有待生成的提示词列表，可以确认顺序和内容。</p>
+              </div>
+            </div>
+            <div class="step-item">
+              <div class="step-num">❹</div>
+              <div class="step-content">
+                <h3>开始批量生成</h3>
+                <p>点击「<strong>开始批量</strong>」，系统会逐条生成。生成过程中可以随时点击「<strong>停止批量</strong>」终止后面的任务。</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="tip-box">
+            <strong>💡 提示：</strong>批量生成的每张图片都会单独显示在右侧对话区和本地图库中，每条记录独立可查。
+          </div>
+        </div>
+      </section>
+
+      <!-- 4. 模板变量 -->
+      <section class="help-section panel" id="template">
+        <div class="section-badge">4</div>
+        <div class="section-body">
+          <h2>模板变量 — 批量更省力</h2>
+          <p class="section-lede">如果批量提示词都是同一个模板、只是主题不同，可以用「模板变量」功能一键展开，省去逐条复制的麻烦。</p>
+
+          <div class="step-list compact">
+            <div class="step-item">
+              <div class="step-num">❶</div>
+              <div class="step-content">
+                <h3>写好模板</h3>
+                <p>在批量输入框中写一段带 <code>{变量名}</code> 的模板：</p>
+                <div class="example-block">
+                  <p class="example-text">一只可爱的{动物}在森林里玩耍，阳光透过树叶洒下来，水彩插画风格</p>
+                </div>
+              </div>
+            </div>
+            <div class="step-item">
+              <div class="step-num">❷</div>
+              <div class="step-content">
+                <h3>填变量值</h3>
+                <p>在下方的变量值文本框中每行填一个值：</p>
+                <div class="example-block">
+                  <p class="example-text">小猫咪</p>
+                  <p class="example-text">小狗狗</p>
+                  <p class="example-text">小兔子</p>
+                </div>
+              </div>
+            </div>
+            <div class="step-item">
+              <div class="step-num">❸</div>
+              <div class="step-content">
+                <h3>展开到输入框</h3>
+                <p>点击「<strong>填充到输入框</strong>」，模板会自动展开成多条完整提示词，每条之间空行分隔。</p>
+              </div>
+            </div>
+            <div class="step-item">
+              <div class="step-num">❹</div>
+              <div class="step-content">
+                <h3>开始批量</h3>
+                <p>检查展开后的内容，确认无误后点击「开始批量」生成。</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="tip-box">
+            <strong>💡 进阶：</strong>支持多个变量。模板里可以写 <code>{人物},{场景},{动作}</code>，变量值每行用逗号分隔不同变量，例如：<code>小女孩,花园,荡秋千</code>。
+          </div>
+        </div>
+      </section>
+
+      <!-- 5. 提示词库 -->
+      <section class="help-section panel" id="prompt-library">
+        <div class="section-badge">5</div>
+        <div class="section-body">
+          <h2>提示词库 — 收藏与复用</h2>
+          <p class="section-lede">把日常收集到的好用提示词集中保存，生成图片时一键取用，避免每次重新编写。</p>
+
+          <div class="feature-grid">
+            <div class="feature-card">
+              <div class="feature-icon">📚</div>
+              <h3>访问入口</h3>
+              <p>在创作台顶部导航点击「<strong>提示词库</strong>」，或直接打开 <code>prompts.html</code>。</p>
+            </div>
+            <div class="feature-card">
+              <div class="feature-icon">➕</div>
+              <h3>新增提示词</h3>
+              <p>点击工具栏「<strong>+ 新增提示词</strong>」，填写「短名称 / 分类 / 提示词内容」保存。分类可自由输入，便于筛选。</p>
+            </div>
+            <div class="feature-card">
+              <div class="feature-icon">🔍</div>
+              <h3>搜索与筛选</h3>
+              <p>顶部搜索框按「名称、分类、提示词内容」模糊匹配；下方分类 chip 快速切换；点击「收藏」只看已收藏的提示词。</p>
+            </div>
+            <div class="feature-card">
+              <div class="feature-icon">♥</div>
+              <h3>收藏常用</h3>
+              <p>卡片右上角的 ♥ 按钮可标记常用提示词，方便快速定位。</p>
+            </div>
+            <div class="feature-card">
+              <div class="feature-icon">📋</div>
+              <h3>复制 / 编辑 / 删除</h3>
+              <p>每张卡片底部对应按钮：复制把提示词放入剪贴板；编辑可随时改写；删除前会有确认弹窗。</p>
+            </div>
+            <div class="feature-card">
+              <div class="feature-icon">🔗</div>
+              <h3>与创作台联动</h3>
+              <p>创作台对话中可点「<strong>收藏提示词</strong>」把当前 prompt 加入收藏夹；提示词库里的「复制」按钮，复制的内容可直接粘贴回创作台输入框。</p>
+            </div>
+          </div>
+
+          <h3 class="sub-heading">导出 / 导入（跨电脑迁移）</h3>
+          <p>提示词库数据保存在浏览器的 <code>localStorage</code> 中，<strong>不会</strong>随项目文件夹一起复制。换电脑、换浏览器、换访问端口后数据不会自动跟随，需要手动迁移。</p>
+
+          <div class="step-list compact">
+            <div class="step-item">
+              <div class="step-num">❶</div>
+              <div class="step-content">
+                <h3>在旧电脑导出</h3>
+                <p>打开提示词库页，点击工具栏右侧的「<strong>导出</strong>」按钮。浏览器会自动下载一个 <code>prompt-library-YYYYMMDD-HHmm.json</code> 文件，妥善保存（可放进项目文件夹随 U 盘带走，或网盘备份）。</p>
+              </div>
+            </div>
+            <div class="step-item">
+              <div class="step-num">❷</div>
+              <div class="step-content">
+                <h3>拷贝到新电脑</h3>
+                <p>把导出的 JSON 文件拷贝到新电脑任意位置。</p>
+              </div>
+            </div>
+            <div class="step-item">
+              <div class="step-num">❸</div>
+              <div class="step-content">
+                <h3>在新电脑导入</h3>
+                <p>在新电脑上打开提示词库页，点击「<strong>导入</strong>」按钮，选择刚才的 JSON 文件。弹出确认框：</p>
+                <ul class="bullet-list">
+                  <li><strong>确定</strong> = 合并模式：保留当前库，按 ID 覆盖重复项，新增追加在前面（推荐日常迁移用）</li>
+                  <li><strong>取消</strong> = 替换模式：清空当前库再导入（适合在新电脑首次搭建使用）</li>
+                </ul>
+                <p>完成后会提示「新增 / 更新」数量，列表自动刷新。</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="tip-box">
+            <strong>💡 提示：</strong>导入只作用于当前浏览器 + 当前访问地址（<code>http://127.0.0.1:3211</code>）。如需同步到无痕窗口或别的浏览器，每个上下文都要单独导入一次。账号、API Key 等私密信息<strong>不会被一起导出</strong>，迁移提示词库是安全的。
+          </div>
+        </div>
+      </section>
+
+      <!-- 6. 图片库 -->
+      <section class="help-section panel" id="gallery">
+        <div class="section-badge">6</div>
+        <div class="section-body">
+          <h2>图片库与记录管理</h2>
+          <p class="section-lede">所有生成的图片都会保存在本地，随时回顾和管理。</p>
+
+          <div class="feature-grid">
+            <div class="feature-card">
+              <div class="feature-icon">🖼️</div>
+              <h3>本地图片库</h3>
+              <p>点击左侧「<strong>打开本地图片库</strong>」进入画廊页面。所有生成图片按日期排列，支持按比例筛选、放大预览、下载和批量删除。</p>
+            </div>
+            <div class="feature-card">
+              <div class="feature-icon">📝</div>
+              <h3>最近创作</h3>
+              <p>左侧底部「<strong>最近创作</strong>」面板列出当前对话的生成记录，方便快速复用之前的提示词。</p>
+            </div>
+            <div class="feature-card">
+              <div class="feature-icon">🗑️</div>
+              <h3>清空记录</h3>
+              <p>点击「<strong>清空对话</strong>」可清空当前对话记录但保留图库；「<strong>清空记录</strong>」清空所有记录。图片库中的图片需手动删除。</p>
+            </div>
+            <div class="feature-card">
+              <div class="feature-icon">📥</div>
+              <h3>下载图片</h3>
+              <p>在右侧对话区点击图片可放大预览；在图片库中每张卡片下方都有「下载」按钮。</p>
+            </div>
+          </div>
+
+          <div class="tip-box">
+            <strong>💡 提示：</strong>所有图片保存在项目目录下的 <code>generated-images/</code> 文件夹中，按日期分目录存放。整个文件夹可随意拷贝到其他电脑使用。
+          </div>
+        </div>
+      </section>
+
+      <!-- Footer -->
+      <footer class="help-footer panel">
+        <p>图生图长 · AI创作台 &nbsp;·&nbsp; 基于 GPT-Image &amp; Agnes API</p>
+        <a class="ghost-link" href="./index.html">← 返回创作台</a>
+      </footer>
+
+    </div>
+  </body>
+</html>

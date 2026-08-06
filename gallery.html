@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>图生图长 · 本地图片库</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./gallery.css" />
+  </head>
+  <body>
+    <div class="gallery-shell">
+      <header class="gallery-hero panel">
+        <div>
+          <p class="eyebrow">Local Gallery</p>
+          <h1>本地图片库</h1>
+          <p class="hero-text">这里汇总图生图长 · AI创作台的历史生成结果，按时间倒序展示。图片和记录都来自当前浏览器本地缓存或本地服务端索引。</p>
+        </div>
+        <div class="hero-actions">
+          <a class="nav-link" href="./index.html">返回创作台</a>
+          <a class="nav-link" href="./prompts.html">提示词库</a>
+          <button class="ghost-button" id="refresh-gallery" type="button">刷新画廊</button>
+        </div>
+      </header>
+
+      <section class="stats-grid">
+        <article class="panel stat-card">
+          <span class="stat-value" id="record-count">0</span>
+          <span class="stat-label">生成记录</span>
+        </article>
+        <article class="panel stat-card">
+          <span class="stat-value" id="image-count">0</span>
+          <span class="stat-label">图片总数</span>
+        </article>
+        <article class="panel stat-card">
+          <span class="stat-value" id="latest-time">-</span>
+          <span class="stat-label">最近生成</span>
+        </article>
+      </section>
+
+      <section class="gallery-toolbar panel">
+        <div>
+          <p class="eyebrow">Filter</p>
+          <h2>按比例筛选</h2>
+        </div>
+        <div class="toolbar-controls">
+          <select id="gallery-filter" class="select-input"></select>
+          <div class="toolbar-actions">
+            <span class="selection-summary" id="selection-summary">未选中记录</span>
+            <button class="ghost-button" id="select-visible-records" type="button">选中当前筛选</button>
+            <button class="ghost-button" id="clear-selection" type="button">清空选择</button>
+            <button class="ghost-button" id="delete-selected-records" type="button">批量删除</button>
+          </div>
+        </div>
+      </section>
+
+      <main class="masonry" id="masonry"></main>
+    </div>
+
+    <div class="lightbox" id="gallery-lightbox" hidden>
+      <div class="lightbox-backdrop" data-lightbox-close="true"></div>
+      <div class="lightbox-dialog panel" role="dialog" aria-modal="true" aria-label="图片放大预览">
+        <button class="lightbox-close" id="lightbox-close" type="button" aria-label="关闭预览">关闭</button>
+        <img class="lightbox-image" id="lightbox-image" alt="" />
+        <p class="lightbox-caption" id="lightbox-caption"></p>
+      </div>
+    </div>
+
+    <template id="gallery-card-template">
+      <article class="gallery-card panel">
+        <img class="gallery-image" />
+        <div class="gallery-body">
+          <div class="gallery-meta-row">
+            <span class="meta-pill ratio-pill"></span>
+            <span class="meta-pill style-pill"></span>
+            <label class="record-pick">
+              <input class="record-select" type="checkbox" />
+              <span>选中</span>
+            </label>
+          </div>
+          <div class="gallery-prompt-block">
+            <p class="gallery-title"></p>
+            <button class="prompt-toggle" type="button" hidden>展开</button>
+          </div>
+          <p class="gallery-time"></p>
+          <div class="gallery-actions">
+            <button class="ghost-button edit-image-button" type="button">编辑此图</button>
+            <button class="ghost-button copy-prompt-button" type="button">复制提示词</button>
+            <a class="download-link" target="_blank" rel="noreferrer">下载</a>
+            <button class="ghost-button delete-record-button" type="button">删除记录</button>
+          </div>
+        </div>
+      </article>
+    </template>
+
+    <script src="./gallery.js"></script>
+  </body>
+</html>

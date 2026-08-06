@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>提示词库 · 图生图长</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./prompts.css" />
+  </head>
+  <body>
+    <div class="prompts-shell">
+      <header class="prompts-hero panel">
+        <div>
+          <p class="eyebrow">Prompt Library</p>
+          <h1>提示词库</h1>
+          <p class="hero-text">收集、整理和复用你喜欢的生图提示词。所有数据保存在当前浏览器本地，可随时编辑、复制或删除。</p>
+        </div>
+        <div class="hero-actions">
+          <a class="nav-link" href="./index.html">返回创作台</a>
+          <a class="nav-link" href="./gallery.html">本地图片库</a>
+        </div>
+      </header>
+
+      <section class="prompts-toolbar panel">
+        <div class="toolbar-row">
+          <div class="search-wrap">
+            <input
+              id="prompt-search"
+              class="search-input"
+              type="search"
+              placeholder="搜索名称、分类或提示词内容… 支持 tag:夜景 is:star 等语法"
+              aria-label="搜索提示词"
+            />
+          </div>
+          <button class="ghost-button" id="export-prompts" type="button" title="把当前所有提示词导出为 JSON 文件，便于跨电脑迁移">导出</button>
+          <button class="ghost-button" id="import-prompts" type="button" title="从 JSON 文件导入提示词（按 ID 合并或覆盖）">导入</button>
+          <input id="import-prompts-file" type="file" accept="application/json,.json" hidden />
+          <button class="primary-button add-prompt-button" id="add-prompt" type="button">+ 新增提示词</button>
+        </div>
+        <div class="category-chips" id="category-chips" aria-label="分类筛选"></div>
+      </section>
+
+      <main class="prompts-grid" id="prompts-grid"></main>
+    </div>
+
+    <div class="prompt-modal" id="prompt-modal" hidden>
+      <div class="prompt-modal-backdrop" data-modal-close="true"></div>
+      <div class="prompt-modal-dialog panel" role="dialog" aria-modal="true" aria-labelledby="prompt-modal-title">
+        <button class="prompt-modal-close" id="prompt-modal-close" type="button" aria-label="关闭">✕</button>
+        <h2 class="prompt-modal-title" id="prompt-modal-title">新增提示词</h2>
+        <form id="prompt-form">
+          <input type="hidden" id="prompt-id" />
+          <div class="field-block">
+            <label class="field-label" for="prompt-name">短名称</label>
+            <input
+              id="prompt-name"
+              class="text-input"
+              type="text"
+              placeholder="例如：电影感雨夜街角"
+              maxlength="40"
+              required
+            />
+          </div>
+          <div class="field-block">
+            <label class="field-label" for="prompt-category-input">分类标签</label>
+            <div class="tag-input-wrap" id="tag-input-wrap">
+              <div class="tag-chips" id="tag-chips"></div>
+              <input
+                id="prompt-category-input"
+                class="tag-text-input"
+                type="text"
+                list="category-list"
+                placeholder="输入标签，按回车或逗号添加"
+                maxlength="30"
+                autocomplete="off"
+              />
+            </div>
+            <span class="field-note">支持多个标签，Enter / 逗号 / 失焦确认添加，Backspace 删除末尾标签</span>
+            <datalist id="category-list"></datalist>
+          </div>
+          <div class="field-block">
+            <label class="field-label" for="prompt-content">提示词内容</label>
+            <textarea
+              id="prompt-content"
+              class="text-input"
+              rows="7"
+              placeholder="粘贴完整的生图提示词..."
+              required
+            ></textarea>
+          </div>
+          <div class="prompt-modal-actions">
+            <button class="ghost-button" type="button" data-modal-close="true">取消</button>
+            <button class="primary-button" type="submit">保存</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <template id="prompt-card-template">
+      <article class="prompt-card panel">
+        <div class="prompt-card-head">
+          <h3 class="prompt-card-title"></h3>
+          <button class="prompt-favorite" type="button" aria-label="收藏">♥</button>
+        </div>
+        <div class="prompt-card-body">
+          <p class="prompt-card-text"></p>
+        </div>
+        <div class="prompt-card-meta prompt-card-categories"></div>
+        <div class="prompt-card-actions">
+          <button class="ghost-button copy-prompt-button" type="button">复制</button>
+          <button class="ghost-button edit-prompt-button" type="button">编辑</button>
+          <button class="ghost-button danger delete-prompt-button" type="button">删除</button>
+        </div>
+      </article>
+    </template>
+
+    <script src="./app-config.js"></script>
+    <script src="./app-utils.js"></script>
+    <script src="./prompts.js"></script>
+  </body>
+</html>
