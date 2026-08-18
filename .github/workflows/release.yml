@@ -1,0 +1,56 @@
+# GitHub Actions workflow: 自动创建 Release
+# 触发条件：推送以 v 开头的 tag（如 v1.0.1、V1.0.1）
+
+name: Auto Release
+
+# 仅在推送 tag 时触发
+on:
+  push:
+    tags:
+      - 'v*'
+      - 'V*'
+
+# 必要的权限：读写 release 内容
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    steps:
+      # 1. 检出代码
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. 读取 RELEASE_NOTES 文件（可选，没有则使用默认说明）
+      - name: Read release notes
+        id: notes
+        run: |
+          if [ -f "RELEASE_NOTES_${GITHUB_REF_NAME}.md" ]; then
+            echo "NOTES<<EOF" >> $GITHUB_OUTPUT
+            cat "RELEASE_NOTES_${GITHUB_REF_NAME}.md" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          elif [ -f "RELEASE_NOTES.md" ]; then
+            echo "NOTES<<EOF" >> $GITHUB_OUTPUT
+            cat "RELEASE_NOTES.md" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          else
+            echo "NOTES<<EOF" >> $GITHUB_OUTPUT
+            echo "## Release ${GITHUB_REF_NAME}" >> $GITHUB_OUTPUT
+            echo "" >> $GITHUB_OUTPUT
+            echo "详见 README.md 了解项目功能与使用方法。" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          fi
+
+      # 3. 创建 GitHub Release
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ github.ref_name }}
+          body: ${{ steps.notes.outputs.NOTES }}
+          draft: false
+          prerelease: false
+          # 自动附加源码 zip 与项目压缩包
+          files: |
+            *.md
