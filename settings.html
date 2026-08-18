@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>通道设置 · 图生图长 · AI创作台</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body class="settings-page">
+    <div class="settings-shell">
+      <header class="settings-topbar panel">
+        <div>
+          <p class="eyebrow">Channel Settings</p>
+          <h1 class="settings-title">通道设置</h1>
+        </div>
+        <a class="ghost-link" href="./index.html">← 返回创作台</a>
+      </header>
+
+      <div class="settings-layout">
+        <aside class="settings-sidebar panel">
+          <nav class="channel-nav" id="channel-nav">
+            <button class="channel-btn is-active" data-channel="image-channels">
+              <span class="channel-icon">◈</span>
+              <span class="channel-label">生图通道</span>
+              <span class="channel-badge">动态管理 · 多API</span>
+            </button>
+            <button class="channel-btn" data-channel="auxiliary">
+              <span class="channel-icon">⚙</span>
+              <span class="channel-label">AI 助手模型</span>
+              <span class="channel-badge">优化提示词</span>
+            </button>
+          </nav>
+        </aside>
+
+        <main class="settings-content panel" id="settings-content">
+          <!-- 生图通道（动态管理） -->
+          <section class="channel-config is-active" data-channel-panel="image-channels">
+            <div class="channel-head">
+              <h2 class="channel-title">◈ 生图通道管理</h2>
+              <p class="channel-desc">在这里添加、编辑和测试你的生图 API 通道。每个通道可以独立配置名称、接口类型、出图模式、Base URL、API Key 和模型名。添加新第三方 API 只需点击「新增通道」。</p>
+            </div>
+            <div class="channel-body">
+              <!-- 通道列表容器 -->
+              <div id="image-channel-list" class="image-channel-list"></div>
+
+              <!-- 新增通道按钮 -->
+              <div class="image-channel-add-row">
+                <button type="button" class="ghost-button" id="add-image-channel-btn">+ 新增生图通道</button>
+              </div>
+            </div>
+          </section>
+
+          <!-- AI 助手模型 -->
+          <section class="channel-config" data-channel-panel="auxiliary">
+            <div class="channel-head">
+              <h2 class="channel-title">🧠 AI 助手模型</h2>
+              <p class="channel-desc">给「一键优化提示词」配置文字 AI。每个平台独立配置自己的接口地址、API Key 和模型名，点击卡片可展开 / 折叠。</p>
+            </div>
+
+            <div class="channel-body">
+              <!-- 配置状态摘要 -->
+              <div class="config-status-summary" id="aux-status-summary" aria-live="polite">
+                <span class="status-icon">⏳</span>
+                <span class="status-text">正在检查配置...</span>
+              </div>
+
+              <!-- 模型商列表容器（每个平台一张独立卡片） -->
+              <div id="llm-provider-list" class="image-channel-list"></div>
+            </div>
+          </section>
+        </main>
+      </div>
+
+      <footer class="settings-footer">
+        <button class="ghost-button danger" id="clear-settings" type="button">清空所有设置</button>
+        <span class="helper-text" id="settings-status">设置会自动保存</span>
+      </footer>
+    </div>
+
+    <script src="./app-config.js"></script>
+    <script src="./app-utils.js"></script>
+    <script src="./settings.js"></script>
+  </body>
+</html>

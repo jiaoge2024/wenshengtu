@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>图生图长 · AI创作台</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="shell">
+      <aside class="sidebar">
+        <section class="brand-card panel">
+          <div class="brand-copy">
+            <p class="eyebrow">AI Image Studio</p>
+            <h1 class="brand-title">图生图长 · AI创作台</h1>
+            <p class="lede">文生图，批量生图与模板变量，多模型可切换，本地图库与提示词库一站搞定。</p>
+          </div>
+          <div class="brand-actions">
+            <a class="nav-link" href="./help.html">使用说明</a>
+            <a class="nav-link" href="./gallery.html" target="_blank" rel="noopener">本地图片库</a>
+            <a class="nav-link" href="./prompts.html" target="_blank" rel="noopener">提示词库</a>
+          </div>
+        </section>
+
+        <section class="panel control-deck" id="control-deck">
+          <div class="section-head compact">
+            <div>
+              <p class="eyebrow">Control Deck</p>
+              <h2>生成控制台</h2>
+            </div>
+          </div>
+
+          <div class="control-stack">
+
+            <div class="field-block field-wide">
+              <label class="field-label" for="model-name">生图模型</label>
+              <select id="model-name" class="text-input select-input"></select>
+              <p class="field-note">可选 GPT-Image 中转模型和 Agnes Image 2.1 Flash 等多个生图模型。GPT-Image 中转通道支持在设置页切换不同模型。</p>
+            </div>
+
+            <div class="model-channel-card">
+              <div>
+                <span class="field-label">Channel Settings</span>
+                <p class="field-note" id="model-channel-note">API Key 和中转地址已移到独立设置页。</p>
+              </div>
+              <a class="ghost-link" id="model-channel-link" href="./settings.html">通道设置</a>
+            </div>
+
+            <div class="field-block field-wide">
+              <span class="field-label">创作模式</span>
+              <div class="mode-switch" id="mode-switch">
+                <button class="mode-button is-active" data-mode="text" type="button">文生图</button>
+              </div>
+            </div>
+
+            <div class="compact-grid" id="generation-options-grid">
+              <div class="field-block">
+                <label class="field-label" for="aspect-ratio">尺寸比例</label>
+                <select id="aspect-ratio" class="text-input select-input"></select>
+              </div>
+              <div class="field-block">
+                <label class="field-label" for="image-quality">生图质量</label>
+                <select id="image-quality" class="text-input select-input"></select>
+              </div>
+              <div class="field-block">
+                <label class="field-label" for="style-template">风格模板</label>
+                <select id="style-template" class="text-input select-input"></select>
+              </div>
+              <div class="field-block">
+                <label class="field-label" for="image-count">生图张数</label>
+                <select id="image-count" class="text-input select-input">
+                  <option value="1">1 张</option>
+                  <option value="2">2 张</option>
+                  <option value="3">3 张</option>
+                  <option value="4">4 张</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel history-card">
+          <div class="section-head compact">
+            <div>
+              <p class="eyebrow">Recent</p>
+              <h2>最近创作</h2>
+            </div>
+            <div class="inline-actions">
+              <a class="ghost-link" href="./gallery.html" target="_blank" rel="noopener">图片库</a>
+              <a class="ghost-link" href="./prompts.html" target="_blank" rel="noopener">提示词库</a>
+              <button class="ghost-button danger" id="clear-history" type="button">清空</button>
+            </div>
+          </div>
+          <div class="history-list" id="history-list"></div>
+        </section>
+      </aside>
+
+      <div class="vertical-resize-handle" id="vertical-resize-handle" title="左右拖拽调整侧边栏宽度"></div>
+
+      <main class="workspace">
+        <section class="workspace-head panel">
+          <div>
+            <p class="eyebrow">Conversation</p>
+            <h2>创作对话</h2>
+          </div>
+          <div class="workspace-actions">
+            <button class="ghost-button small-button account-user-btn" id="account-user-btn" type="button" title="账号管理">
+              <span class="account-avatar" id="account-avatar"></span>
+              <span class="account-nickname" id="account-nickname">登录</span>
+            </button>
+            <button
+              class="ghost-button small-button collapse-button"
+              id="toggle-preview-panel"
+              type="button"
+              aria-expanded="true"
+              aria-controls="chat-workspace"
+            >收起</button>
+            <button class="ghost-button danger" id="clear-chat" type="button">清空对话</button>
+          </div>
+        </section>
+
+        <section class="chat-panel panel" id="preview-panel">
+          <div class="chat-workspace" id="chat-workspace">
+            <div class="message-viewport" id="message-viewport">
+              <div class="message-list" id="message-list"></div>
+            </div>
+
+            <div class="resize-handle" id="resize-handle" title="上下拖拽调整对话区高度"></div>
+
+            <form class="composer" id="composer">
+              <div class="field-block field-wide" id="task-mode-field">
+                <span class="field-label">提交方式</span>
+                <div class="mode-switch" id="task-mode-switch">
+                  <button class="mode-button is-active" data-task-mode="single" type="button">单次</button>
+                  <button class="mode-button" data-task-mode="batch" type="button">
+                    <span class="mode-button-text">批量</span>
+                    <span class="mode-button-pulse" aria-hidden="true"></span>
+                  </button>
+                </div>
+              </div>
+              <div class="mode-hint" id="task-mode-hint" data-mode-hint="single">
+                <span class="mode-hint-icon" id="task-mode-hint-icon">💡</span>
+                <span class="mode-hint-text" id="task-mode-hint-text">
+                  想一次生成多张图？点上方切换到 <b>批量</b> 模式，用 <b>空行</b> 分隔多段提示词
+                </span>
+              </div>
+              <div id="single-prompt-panel">
+                <div class="batch-input-head">
+                  <label class="field-label" for="prompt-input">提示词</label>
+                  <div class="prompt-head-actions">
+                    <button class="ghost-button small-button optimize-button" id="optimize-prompt" type="button">一键优化</button>
+                    <button class="ghost-button small-button" id="clear-prompt" type="button">清空</button>
+                  </div>
+                </div>
+                <textarea
+                  id="prompt-input"
+                  placeholder="描述你想要的画面，例如：保留参考图的人物姿势，但改成温暖的水彩插画风格，背景换成春天花园。"
+                  rows="5"
+                ></textarea>
+              </div>
+              <div class="batch-panel" id="batch-panel" hidden>
+                <div class="batch-input-head">
+                  <label class="field-label" for="batch-prompt-input">批量提示词</label>
+                  <button class="ghost-button small-button" id="clear-batch-prompts" type="button">清空</button>
+                </div>
+                <textarea
+                  id="batch-prompt-input"
+                  placeholder="每段提示词之间空一行。每一段都会按顺序单独生成一张图片。"
+                  rows="9"
+                ></textarea>
+                <div class="helper-text">用空行分隔多段提示词，系统会顺序逐张生成。支持 <code>{变量}</code> 模板（逗号分隔多变量）。</div>
+                <div class="batch-template-section">
+                  <div class="template-body" id="template-body">
+                    <div class="template-guide">
+                      <div class="template-guide-row">
+                        <span class="template-guide-tag">① 模板</span>
+                        <code class="template-guide-code">一只{动物}在{场景}里玩耍</code>
+                      </div>
+                      <div class="template-guide-row">
+                        <span class="template-guide-tag">② 值</span>
+                        <code class="template-guide-code">小猫,客厅 / 小狗,公园</code>
+                      </div>
+                      <div class="template-guide-note">⚠ 只有 <code>{变量}</code> 这种半角大括号才会被识别为变量，<code>【变量】</code> <code>（变量）</code> 及其它符号无效</div>
+                    </div>
+                    <div class="template-field">
+                      <label class="field-label" for="template-values">变量值（每行一组，逗号分隔多个变量）</label>
+                      <textarea
+                        id="template-values"
+                        class="text-input"
+                        rows="3"
+                        placeholder="小猫,客厅
+小狗,公园"
+                      ></textarea>
+                      <div class="template-footer">
+                        <button class="ghost-button small-button" id="apply-template" type="button">填充到输入框</button>
+                        <span class="template-summary" id="template-summary">将生成 0 条</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="batch-queue-head">
+                  <span class="field-label">队列预览</span>
+                  <span class="batch-queue-summary" id="batch-queue-summary">未添加提示词</span>
+                </div>
+                <div class="batch-queue-list" id="batch-queue-list"></div>
+              </div>
+              <div class="composer-actions">
+                <div class="helper-text" id="composer-helper-text">按 <kbd>Ctrl</kbd> + <kbd>Enter</kbd> 可直接生成或编辑</div>
+                <div class="button-row">
+                  <div class="queue-status-bar" id="queue-status-bar" hidden>
+                    <span class="queue-icon">⏳</span>
+                    <span class="queue-count">0</span>
+                    <span class="queue-label">排队中</span>
+                  </div>
+                  <button class="ghost-button" id="random-generate-button" type="button">随机生图</button>
+                  <button class="primary-button" id="generate-button" type="submit">开始创作</button>
+                  <button class="ghost-button danger" id="stop-generate-button" type="button" hidden>停止生图</button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <!-- 账号登录/注册弹窗 -->
+    <div class="account-modal-overlay" id="account-modal-overlay" hidden>
+      <div class="account-modal" role="dialog" aria-modal="true" aria-labelledby="account-modal-title">
+        <button class="account-modal-close" id="account-modal-close" type="button" aria-label="关闭">✕</button>
+
+        <!-- 登录面板 -->
+        <div class="account-panel" id="account-login-panel">
+          <h2 class="account-modal-title" id="account-modal-title">登录</h2>
+          <p class="account-modal-desc">欢迎回来，继续你的 AI 创作之旅。</p>
+          <div class="account-field">
+            <label class="field-label" for="login-email">邮箱</label>
+            <input class="text-input" id="login-email" type="email" placeholder="请输入邮箱" autocomplete="email" />
+          </div>
+          <div class="account-field">
+            <label class="field-label" for="login-password">密码</label>
+            <input class="text-input" id="login-password" type="password" placeholder="请输入密码" autocomplete="current-password" />
+          </div>
+          <p class="account-error" id="login-error" hidden></p>
+          <button class="primary-button account-submit-btn" id="login-submit-btn" type="button">登录</button>
+          <p class="account-switch">还没有账号？<button class="link-button" id="switch-to-register" type="button">立即注册</button></p>
+        </div>
+
+        <!-- 注册面板 -->
+        <div class="account-panel" id="account-register-panel" hidden>
+          <h2 class="account-modal-title">注册账号</h2>
+          <p class="account-modal-desc">创建账号，保存你的创作数据。</p>
+          <div class="account-field">
+            <label class="field-label" for="register-nickname">昵称 <span class="required-star">*</span></label>
+            <input class="text-input" id="register-nickname" type="text" placeholder="给自己起个名字" maxlength="20" autocomplete="nickname" />
+          </div>
+          <div class="account-field">
+            <label class="field-label" for="register-email">邮箱 <span class="required-star">*</span></label>
+            <input class="text-input" id="register-email" type="email" placeholder="请输入邮箱" autocomplete="email" />
+          </div>
+          <div class="account-field">
+            <label class="field-label" for="register-password">密码 <span class="required-star">*</span></label>
+            <input class="text-input" id="register-password" type="password" placeholder="至少 6 位" minlength="6" autocomplete="new-password" />
+          </div>
+          <p class="account-error" id="register-error" hidden></p>
+          <button class="primary-button account-submit-btn" id="register-submit-btn" type="button">注册</button>
+          <p class="account-switch">已有账号？<button class="link-button" id="switch-to-login" type="button">去登录</button></p>
+        </div>
+
+        <!-- 个人中心面板 -->
+        <div class="account-panel" id="account-profile-panel" hidden>
+          <h2 class="account-modal-title">个人中心</h2>
+          <div class="account-profile-info">
+            <div class="account-profile-avatar" id="account-profile-avatar"></div>
+            <div class="account-profile-details">
+              <p class="account-profile-nickname" id="account-profile-nickname"></p>
+              <p class="account-profile-email" id="account-profile-email"></p>
+            </div>
+          </div>
+          <div class="account-field">
+            <label class="field-label" for="profile-nickname">修改昵称</label>
+            <input class="text-input" id="profile-nickname" type="text" placeholder="新昵称" maxlength="20" />
+          </div>
+          <div class="account-field">
+            <label class="field-label" for="profile-password">修改密码</label>
+            <input class="text-input" id="profile-password" type="password" placeholder="新密码，留空则不修改" minlength="6" />
+          </div>
+          <p class="account-error" id="profile-error" hidden></p>
+          <button class="primary-button account-submit-btn" id="profile-save-btn" type="button">保存修改</button>
+          <button class="ghost-button danger account-logout-btn" id="account-logout-btn" type="button">退出登录</button>
+        </div>
+      </div>
+    </div>
+
+    <template id="message-template">
+      <article class="message-item">
+        <div class="message-meta">
+          <span class="message-role"></span>
+          <time class="message-time"></time>
+        </div>
+        <div class="message-bubble">
+          <div class="message-tags"></div>
+          <p class="message-text"></p>
+          <div class="image-gallery"></div>
+          <div class="message-actions"></div>
+        </div>
+      </article>
+    </template>
+
+    <div class="preview-lightbox" id="preview-lightbox" hidden>
+      <div class="lightbox-backdrop" data-lightbox-close="true"></div>
+      <button class="lightbox-close-btn" id="lightbox-close-btn" type="button" aria-label="关闭预览">✕</button>
+      <img class="lightbox-image" id="lightbox-image" alt="" />
+    </div>
+
+    <script src="./app-config.js"></script>
+    <script src="./app-utils.js"></script>
+    <script src="./app.js"></script>
+  </body>
+</html>
