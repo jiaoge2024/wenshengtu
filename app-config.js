@@ -1,35 +1,98 @@
 (function () {
   window.__APP = window.__APP || {};
 
+  // localStorage 键定义（通用命名空间，不暴露项目原始名称）
   __APP.STORAGE_KEYS = {
-    gptApiKey: "jiaoge-ai-toolbox:gpt-image-api-key",
-    agnesApiKey: "jiaoge-ai-toolbox:agnes-image-api-key",
-    model: "jiaoge-ai-toolbox:image-model",
-    draft: "jiaoge-ai-toolbox:image-draft",
-    batchDraft: "jiaoge-ai-toolbox:image-batch-draft",
-    history: "jiaoge-ai-toolbox:image-history-v1",
-    legacyGallery: "jiaoge-ai-toolbox:image-gallery-v1",
-    aspectRatio: "jiaoge-ai-toolbox:image-aspect-ratio",
-    imageQuality: "jiaoge-ai-toolbox:image-quality",
-    styleTemplate: "jiaoge-ai-toolbox:image-style-template",
-    imageCount: "jiaoge-ai-toolbox:image-count",
-    mode: "jiaoge-ai-toolbox:image-mode",
-    taskMode: "jiaoge-ai-toolbox:image-task-mode",
-    previewPanelCollapsed: "jiaoge-ai-toolbox:preview-panel-collapsed",
-    chatPanelHeight: "jiaoge-ai-toolbox:chat-panel-height",
-    sidebarWidth: "jiaoge-ai-toolbox:sidebar-width",
-    account: "jiaoge-ai-toolbox:account",
-    agnesModel: "jiaoge-ai-toolbox:agnes-model",
-    agnesBaseUrl: "jiaoge-ai-toolbox:agnes-base-url",
-    gptImageModel: "jiaoge-ai-toolbox:gpt-image-model",
-    customImageApiKey: "jiaoge-ai-toolbox:custom-image-api-key",
-    customImageBaseUrl: "jiaoge-ai-toolbox:custom-image-base-url",
-    customImageModel: "jiaoge-ai-toolbox:custom-image-model",
-    imageChannels: "jiaoge-ai-toolbox:image-channels-v1",
-    llmProviders: "jiaoge-ai-toolbox:llm-providers",
-    optimizeProvider: "jiaoge-ai-toolbox:optimize-provider",
-    optimizeModel: "jiaoge-ai-toolbox:optimize-model",
-    promptLibrary: "jiaoge-ai-toolbox:prompt-library-v1"
+    gptApiKey: "image-studio:gpt-image-api-key",
+    agnesApiKey: "image-studio:agnes-image-api-key",
+    model: "image-studio:image-model",
+    draft: "image-studio:image-draft",
+    batchDraft: "image-studio:image-batch-draft",
+    history: "image-studio:image-history-v1",
+    legacyGallery: "image-studio:image-gallery-v1",
+    aspectRatio: "image-studio:image-aspect-ratio",
+    imageQuality: "image-studio:image-quality",
+    styleTemplate: "image-studio:image-style-template",
+    imageCount: "image-studio:image-count",
+    mode: "image-studio:image-mode",
+    taskMode: "image-studio:image-task-mode",
+    previewPanelCollapsed: "image-studio:preview-panel-collapsed",
+    chatPanelHeight: "image-studio:chat-panel-height",
+    sidebarWidth: "image-studio:sidebar-width",
+    account: "image-studio:account",
+    agnesModel: "image-studio:agnes-model",
+    agnesBaseUrl: "image-studio:agnes-base-url",
+    gptImageModel: "image-studio:gpt-image-model",
+    customImageApiKey: "image-studio:custom-image-api-key",
+    customImageBaseUrl: "image-studio:custom-image-base-url",
+    customImageModel: "image-studio:custom-image-model",
+    imageChannels: "image-studio:image-channels-v1",
+    llmProviders: "image-studio:llm-providers",
+    optimizeProvider: "image-studio:optimize-provider",
+    optimizeModel: "image-studio:optimize-model",
+    promptLibrary: "image-studio:prompt-library-v1"
+  };
+
+  // 旧的 localStorage 键前缀（仅用于一次性向后兼容迁移，不再用于新代码中）
+  __APP.LEGACY_STORAGE_PREFIX = "jiaoge-ai-toolbox:";
+
+  /**
+   * 向后兼容读取 localStorage
+   * 优先读取新键（image-studio:xxx），若不存在则尝试旧键（jiaoge-ai-toolbox:xxx）
+   * 用于平滑迁移，不破坏已有用户配置
+   * @param {string} newKey - 新的 localStorage 键
+   * @returns {string|null} 取到的值，或 null
+   */
+  __APP.getStoredCompat = function (newKey) {
+    if (!newKey) return null;
+    var v = window.localStorage.getItem(newKey);
+    if (v !== null && v !== undefined && v !== "") return v;
+    // 尝试旧键（把 image-studio: 前缀替换为 jiaoge-ai-toolbox:）
+    if (newKey.indexOf("image-studio:") === 0) {
+      var legacyKey = __APP.LEGACY_STORAGE_PREFIX + newKey.substring("image-studio:".length);
+      v = window.localStorage.getItem(legacyKey);
+      if (v !== null && v !== undefined && v !== "") {
+        // 读到旧键时，自动写入新键并清理旧键
+        try {
+          window.localStorage.setItem(newKey, v);
+          window.localStorage.removeItem(legacyKey);
+        } catch (e) { /* ignore quota errors */ }
+        return v;
+      }
+    }
+    return null;
+  };
+
+  /**
+   * 启动期一次性迁移：把所有 jiaoge-ai-toolbox:xxx 旧键中的值复制到 image-studio:xxx 新键
+   * 仅在新键不存在时迁移，避免覆盖用户最新配置
+   * 调用方：脚本加载时立即执行一次
+   */
+  __APP.migrateLegacyStorage = function () {
+    if (!window || !window.localStorage) return;
+    try {
+      var legacyPrefix = __APP.LEGACY_STORAGE_PREFIX;
+      var newPrefix = "image-studio:";
+      var newKeys = __APP.STORAGE_KEYS;
+      Object.keys(newKeys).forEach(function (k) {
+        var newKey = newKeys[k];
+        if (!newKey || newKey.indexOf(newPrefix) !== 0) return;
+        // 跳过：新键已经有值
+        if (window.localStorage.getItem(newKey) !== null) return;
+        // 读旧键
+        var suffix = newKey.substring(newPrefix.length);
+        var legacyKey = legacyPrefix + suffix;
+        var legacyVal = window.localStorage.getItem(legacyKey);
+        if (legacyVal !== null) {
+          try {
+            window.localStorage.setItem(newKey, legacyVal);
+            window.localStorage.removeItem(legacyKey);
+          } catch (e) { /* ignore */ }
+        }
+      });
+    } catch (e) {
+      // 迁移失败不影响主功能
+    }
   };
 
   /**
@@ -106,7 +169,8 @@
    * @returns {Array} 迁移后的通道数组
    */
   __APP.migrateImageChannels = function () {
-    var existing = window.localStorage.getItem(__APP.STORAGE_KEYS.imageChannels);
+    // 使用向后兼容读取：优先新键，缺失时回退旧键
+    var existing = __APP.getStoredCompat(__APP.STORAGE_KEYS.imageChannels);
     if (existing) {
       try {
         var parsed = JSON.parse(existing);
@@ -132,9 +196,9 @@
 
     var channels = __APP.getDefaultImageChannels();
 
-    // 迁移 GPT-Image 中转通道
-    var gptKey = window.localStorage.getItem(__APP.STORAGE_KEYS.gptApiKey);
-    var gptModel = window.localStorage.getItem(__APP.STORAGE_KEYS.gptImageModel);
+    // 迁移 GPT-Image 中转通道（向后兼容旧键）
+    var gptKey = __APP.getStoredCompat(__APP.STORAGE_KEYS.gptApiKey);
+    var gptModel = __APP.getStoredCompat(__APP.STORAGE_KEYS.gptImageModel);
     if (gptKey) {
       channels[0].apiKey = gptKey || "";
       channels[0].baseUrl = __APP.APIMART_GENERATION_URL.replace(/\/images\/generations$/, "");
@@ -142,10 +206,10 @@
       channels[0].enabled = true;
     }
 
-    // 迁移自定义生图通道
-    var customKey = window.localStorage.getItem(__APP.STORAGE_KEYS.customImageApiKey);
-    var customBaseUrl = window.localStorage.getItem(__APP.STORAGE_KEYS.customImageBaseUrl);
-    var customModel = window.localStorage.getItem(__APP.STORAGE_KEYS.customImageModel);
+    // 迁移自定义生图通道（向后兼容旧键）
+    var customKey = __APP.getStoredCompat(__APP.STORAGE_KEYS.customImageApiKey);
+    var customBaseUrl = __APP.getStoredCompat(__APP.STORAGE_KEYS.customImageBaseUrl);
+    var customModel = __APP.getStoredCompat(__APP.STORAGE_KEYS.customImageModel);
     if (customKey || customBaseUrl) {
       channels.push({
         id: "ch-migrated-custom",
@@ -160,10 +224,10 @@
       });
     }
 
-    // 迁移 Agnes 通道
-    var agnesKey = window.localStorage.getItem(__APP.STORAGE_KEYS.agnesApiKey);
-    var agnesBaseUrl = window.localStorage.getItem(__APP.STORAGE_KEYS.agnesBaseUrl);
-    var agnesModel = window.localStorage.getItem(__APP.STORAGE_KEYS.agnesModel);
+    // 迁移 Agnes 通道（向后兼容旧键）
+    var agnesKey = __APP.getStoredCompat(__APP.STORAGE_KEYS.agnesApiKey);
+    var agnesBaseUrl = __APP.getStoredCompat(__APP.STORAGE_KEYS.agnesBaseUrl);
+    var agnesModel = __APP.getStoredCompat(__APP.STORAGE_KEYS.agnesModel);
     if (agnesKey || agnesBaseUrl) {
       channels.push({
         id: "ch-migrated-agnes",
@@ -490,4 +554,7 @@
     var quality = __APP.normalizeImageQuality(imageQuality);
     return (sizesByQuality[quality] && sizesByQuality[quality][aspectRatio]) || sizesByQuality[quality]["1:1"];
   };
+
+  // 启动期执行一次旧键迁移，确保已有用户的本地配置无缝过渡到新键
+  try { __APP.migrateLegacyStorage(); } catch (e) { /* ignore */ }
 })();

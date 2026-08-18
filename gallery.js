@@ -1,8 +1,9 @@
 (function () {
   const API_ENDPOINT = "/api/image-studio/gallery";
   const DELETE_ENDPOINT = "/api/image-studio/delete";
-  const GALLERY_STORAGE_KEY = "jiaoge-ai-toolbox:image-gallery-v1";
-  const HISTORY_STORAGE_KEY = "jiaoge-ai-toolbox:image-history-v1";
+  // localStorage 键（与 app-config.js 中的 STORAGE_KEYS 保持一致，使用通用命名空间）
+  const GALLERY_STORAGE_KEY = "image-studio:image-gallery-v1";
+  const HISTORY_STORAGE_KEY = "image-studio:image-history-v1";
   const ALL_RATIOS_LABEL = "全部比例";
   const FALLBACK_MESSAGE = "还没有可展示的图片。先回到图生图长 · AI创作台生成几张图。";
 
@@ -69,7 +70,15 @@
 
   function parseStorage(key) {
     try {
-      const raw = window.localStorage.getItem(key);
+      // 向后兼容：若新键不存在，尝试旧键（jiaoge-ai-toolbox:），并自动迁移到新键
+      let raw = window.localStorage.getItem(key);
+      if (raw === null && key.indexOf("image-studio:") === 0) {
+        const legacyKey = "jiaoge-ai-toolbox:" + key.substring("image-studio:".length);
+        raw = window.localStorage.getItem(legacyKey);
+        if (raw !== null) {
+          try { window.localStorage.setItem(key, raw); window.localStorage.removeItem(legacyKey); } catch (e) { /* ignore */ }
+        }
+      }
       const parsed = raw ? JSON.parse(raw) : [];
       return Array.isArray(parsed) ? parsed : [];
     } catch (error) {

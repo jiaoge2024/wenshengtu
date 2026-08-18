@@ -77,6 +77,13 @@ test("image reverse prompt and Gemini reverse inference are removed from the pro
   const script = readProjectFile("app.js");
 
   assert.ok(!config.includes('reverseApiKey: "jiaoge-ai-toolbox:gemini-reverse-api-key"'));
+  // 通用命名空间：不暴露项目原始名称（兼容代码 LEGACY_STORAGE_PREFIX 除外）
+  // 仅检查 STORAGE_KEYS 区域：键的字符串值不应再以 jiaoge-ai-toolbox: 开头
+  var storageKeysBlock = config.match(/__APP\.STORAGE_KEYS\s*=\s*\{[\s\S]*?\};/);
+  if (storageKeysBlock) {
+    assert.ok(!/["']jiaoge-ai-toolbox:/.test(storageKeysBlock[0]),
+      "STORAGE_KEYS 中不应再出现以 jiaoge-ai-toolbox: 开头的键");
+  }
   assert.ok(!config.includes("REVERSE_PROMPT_MODEL"));
   assert.ok(!config.includes("OFFICIAL_FALLBACK_MODEL"));
   assert.ok(!config.includes("generateReversePrompt"));
@@ -108,7 +115,7 @@ test("preview panel can be collapsed and remembers state", () => {
   assert.ok(html.includes('id="toggle-preview-panel"'));
   assert.ok(html.includes('id="preview-panel"'));
   assert.ok(html.includes('id="chat-workspace"'));
-  assert.ok(config.includes('previewPanelCollapsed: "jiaoge-ai-toolbox:preview-panel-collapsed"'));
+  assert.ok(config.includes('previewPanelCollapsed: "image-studio:preview-panel-collapsed"'));
   assert.ok(script.includes("function setPreviewPanelCollapsed(collapsed)"));
   assert.ok(script.includes("function initPreviewPanelCollapse()"));
   assert.ok(script.includes("togglePreviewPanel.addEventListener"));
@@ -125,7 +132,7 @@ test("dynamic image channel system supports multiple APIs with names and modes",
   const styles = readProjectFile("styles.css");
 
   // 新的存储键
-  assert.ok(config.includes('imageChannels: "jiaoge-ai-toolbox:image-channels-v1"'));
+  assert.ok(config.includes('imageChannels: "image-studio:image-channels-v1"'));
 
   // 通道类型定义
   assert.ok(config.includes("CHANNEL_TYPES"));

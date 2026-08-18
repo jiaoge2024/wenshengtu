@@ -229,7 +229,7 @@ image-studio-standalone/
 
 ## 📤 提示词库导入 / 导出
 
-> 提示词库存储 key：`jiaoge-ai-toolbox:prompt-library-v1`
+> 提示词库存储 key：`image-studio:prompt-library-v1`
 > 可在浏览器 DevTools → Application → Local Storage 中查看。
 
 ### 导出（旧电脑）
