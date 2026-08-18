@@ -1,5 +1,5 @@
 # GitHub Actions workflow: 自动创建 Release
-# 触发条件：推送以 v 开头的 tag（如 v1.0.1、V1.0.1）
+# 触发条件：推送以 v 或 V 开头的 tag（如 v1.0.1、V1.0.1）
 
 name: Auto Release
 
@@ -23,34 +23,59 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2. 读取 RELEASE_NOTES 文件（可选，没有则使用默认说明）
-      - name: Read release notes
-        id: notes
-        run: |
-          if [ -f "RELEASE_NOTES_${GITHUB_REF_NAME}.md" ]; then
-            echo "NOTES<<EOF" >> $GITHUB_OUTPUT
-            cat "RELEASE_NOTES_${GITHUB_REF_NAME}.md" >> $GITHUB_OUTPUT
-            echo "EOF" >> $GITHUB_OUTPUT
-          elif [ -f "RELEASE_NOTES.md" ]; then
-            echo "NOTES<<EOF" >> $GITHUB_OUTPUT
-            cat "RELEASE_NOTES.md" >> $GITHUB_OUTPUT
-            echo "EOF" >> $GITHUB_OUTPUT
-          else
-            echo "NOTES<<EOF" >> $GITHUB_OUTPUT
-            echo "## Release ${GITHUB_REF_NAME}" >> $GITHUB_OUTPUT
-            echo "" >> $GITHUB_OUTPUT
-            echo "详见 README.md 了解项目功能与使用方法。" >> $GITHUB_OUTPUT
-            echo "EOF" >> $GITHUB_OUTPUT
-          fi
-
-      # 3. 创建 GitHub Release
+      # 2. 直接创建 Release（不再读取外部文件，避免 shell 转义问题）
+      #    Release body 从项目的 README.md 中提取摘要
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           name: ${{ github.ref_name }}
-          body: ${{ steps.notes.outputs.NOTES }}
+          body: |
+            ## 图生图长 · AI 创作台 ${{ github.ref_name }}
+
+            > 纯本地运行的 AI 文字生图工具，开箱即用，支持多通道、多平台、多模板。
+
+            ### 🚀 快速开始
+
+            1. 双击 `start.bat` 启动，浏览器会自动打开 `http://127.0.0.1:3211/`
+            2. 在「通道设置」中配置生图 API（Base URL / API Key / 模型名）
+            3. 在「AI 助手模型」中配置一键优化用的文本模型（可选）
+            4. 回到创作台，输入提示词，点击「开始创作」（快捷键 `Ctrl + Enter`）
+
+            ### ✨ 核心功能
+
+            - **文生图**：支持 1:1 / 3:4 / 4:3 / 9:16 / 16:9 / 21:9 多种比例，1K / 2K / 4K 三档清晰度
+            - **批量生图**：多段提示词（空行分隔）一键顺序生成，可随时停止
+            - **模板变量**：`{变量}` 模板 + 变量值表快速展开多条提示词
+            - **随机生图**：内置 30 条精选示例提示词，一键随机填入找灵感
+            - **一键优化提示词**：调用 AI 助手模型改写提示词
+            - **多生图通道管理**：支持任意多个 API 通道，OpenAI Images 兼容 / Agnes Images 两种接口类型
+            - **多 AI 助手平台**：DeepSeek / MiniMax / 其他服务三张独立卡片
+            - **提示词库**：模糊搜索、收藏、导入导出 JSON
+            - **本地图片库**：按日期浏览、按比例筛选、放大预览、单张下载、批量删除
+            - **轻量账号系统**：本地保存个性化配置（可选）
+
+            ### 📦 本次更新（相对 V1.0.0）
+
+            - 同步项目最新源代码（V2.0.1 内部开发版）
+            - 优化批量生图面板文案与交互
+            - 更新 README 与帮助文档
+            - 完善生图通道测试与诊断能力
+            - 修复若干已知问题，提升整体稳定性
+
+            ### ⚙️ 兼容性
+
+            - 操作系统：Windows 10 / 11
+            - 运行时：Node.js（启动脚本会自动检查）
+            - 浏览器：Chrome / Edge / Firefox 最新版
+
+            ### 📥 下载与使用
+
+            下载本 Release 下的源码压缩包，解压后双击 `start.bat` 即可启动。
+
+            ---
+
+            如有问题或建议，欢迎在仓库 Issues 中反馈。
           draft: false
           prerelease: false
-          # 自动附加源码 zip 与项目压缩包
-          files: |
-            *.md
+          # GitHub 会自动生成 source code 压缩包，无需额外附加文件
+          fail_on_unmatched_files: false
