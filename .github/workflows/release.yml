@@ -1,4 +1,4 @@
-# GitHub Actions workflow: 自动创建 Release
+# GitHub Actions workflow: 自动创建 Release 并上传源码压缩包
 # 触发条件：推送以 v 或 V 开头的 tag（如 v1.0.1、V1.0.1）
 
 name: Auto Release
@@ -23,8 +23,36 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2. 直接创建 Release（不再读取外部文件，避免 shell 转义问题）
-      #    Release body 从项目的 README.md 中提取摘要
+      # 2. 打包源码为 zip（排除 .git、node_modules、generated-images 等）
+      - name: Build source zip
+        working-directory: ..
+        run: |
+          # 打包时排除不需要的目录和文件
+          zip -r "${{ github.workspace }}/wenshengtu-${{ github.ref_name }}.zip" \
+            "${{ github.workspace }}/.github" \
+            "${{ github.workspace }}/.gitignore" \
+            "${{ github.workspace }}/README.md" \
+            "${{ github.workspace }}/RELEASE_NOTES_*.md" \
+            "${{ github.workspace }}/app-config.js" \
+            "${{ github.workspace }}/app-utils.js" \
+            "${{ github.workspace }}/app.js" \
+            "${{ github.workspace }}/gallery.css" \
+            "${{ github.workspace }}/gallery.html" \
+            "${{ github.workspace }}/gallery.js" \
+            "${{ github.workspace }}/help.html" \
+            "${{ github.workspace }}/index.html" \
+            "${{ github.workspace }}/prompts.css" \
+            "${{ github.workspace }}/prompts.html" \
+            "${{ github.workspace }}/prompts.js" \
+            "${{ github.workspace }}/server.js" \
+            "${{ github.workspace }}/settings.html" \
+            "${{ github.workspace }}/settings.js" \
+            "${{ github.workspace }}/start.bat" \
+            "${{ github.workspace }}/styles.css" \
+            "${{ github.workspace }}/tests" \
+            -x "*.git/*" "generated-images/*" "node_modules/*"
+
+      # 3. 创建 GitHub Release 并上传 zip
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
@@ -70,12 +98,12 @@ jobs:
 
             ### 📥 下载与使用
 
-            下载本 Release 下的源码压缩包，解压后双击 `start.bat` 即可启动。
+            下载本 Release 下的源码压缩包 `wenshengtu-${{ github.ref_name }}.zip`，解压后双击 `start.bat` 即可启动。
 
             ---
 
             如有问题或建议，欢迎在仓库 Issues 中反馈。
           draft: false
           prerelease: false
-          # GitHub 会自动生成 source code 压缩包，无需额外附加文件
-          fail_on_unmatched_files: false
+          files: wenshengtu-${{ github.ref_name }}.zip
+          fail_on_unmatched_files: true
