@@ -45,10 +45,15 @@ body.lightbox-open {
 
 .gallery-hero {
   display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
-  column-gap: 48px;
+  grid-template-columns: minmax(0, 1.7fr) minmax(0, 1.3fr);
+  column-gap: 28px;
   row-gap: 16px;
   align-items: start;
+}
+
+/* 标题比全站默认 h1 缩小一号，避免头图过于笨重 */
+.gallery-hero h1 {
+  font-size: clamp(1.7rem, 2.6vw, 2.6rem);
 }
 
 .hero-main {
@@ -70,16 +75,17 @@ body.lightbox-open {
 
 .hero-actions {
   display: flex;
-  gap: 12px;
+  gap: 8px;
   flex-wrap: wrap;
   justify-content: flex-end;
 }
 
 .hero-actions .nav-link,
 .hero-actions .ghost-button {
-  min-height: 32px;
-  padding: 6px 12px;
-  font-size: 0.85rem;
+  min-height: 30px;
+  padding: 5px 10px;
+  font-size: 0.8rem;
+  white-space: nowrap;
 }
 
 .hero-stats {

@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>小红书图文笔记 · 图生图长</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./xhs.css" />
+  </head>
+  <body>
+    <div class="xhs-shell">
+      <!-- 顶部：标题与导航 -->
+      <header class="xhs-hero panel">
+        <div>
+          <p class="eyebrow">Xiaohongshu Notes</p>
+          <h1>小红书图文笔记</h1>
+          <p class="hero-text">输入一个主题，AI 自动策划笔记大纲并为每一页生成配图提示词，再逐张调用你的生图通道出图，产出可直接发布的小红书图文笔记。</p>
+        </div>
+        <div class="hero-actions">
+          <a class="nav-link" href="./index.html">返回创作台</a>
+          <a class="nav-link" href="./prompts.html">提示词库</a>
+          <a class="nav-link" href="./gallery.html">本地图片库</a>
+        </div>
+      </header>
+
+      <!-- 配置区：风格选择 + 模型选择（可折叠） -->
+      <section class="xhs-config panel">
+        <div class="xhs-panel-head">
+          <h2 class="xhs-section-title">创作配置</h2>
+          <button class="xhs-collapse-toggle" id="xhs-config-toggle" type="button" aria-expanded="false" aria-controls="xhs-config-body">展开 ▾</button>
+        </div>
+        <div class="xhs-panel-body" id="xhs-config-body" hidden>
+          <h2 class="xhs-section-title">1 · 笔记风格</h2>
+          <!-- 风格搜索：风格数量达到阈值时由 JS 显示 -->
+          <input
+            id="xhs-style-search"
+            class="text-input xhs-style-search"
+            type="search"
+            placeholder="搜索风格名称..."
+            hidden
+          />
+          <div class="xhs-style-cards" id="xhs-style-cards" aria-label="笔记风格选择"></div>
+          <!-- 风格被搜索过滤后无匹配结果的提示 -->
+          <p class="xhs-style-empty" id="xhs-style-empty" hidden>没有匹配的风格，换个关键词试试。</p>
+
+          <!-- 自定义风格：添加 / 编辑，保存后写入本地风格库 -->
+          <div class="xhs-style-form">
+            <span class="field-label" id="xhs-style-form-title">自定义风格</span>
+            <input id="xhs-style-name" class="text-input" type="text" maxlength="30" placeholder="风格名称，如：科技感蓝调" />
+            <textarea id="xhs-style-prompt" class="text-input xhs-style-prompt-input" rows="3" maxlength="600" placeholder="风格描述 Prompt，如：深蓝色科技感，发光线条，未来感 HUD 界面元素..."></textarea>
+            <div class="xhs-style-form-actions">
+              <button class="ghost-button" id="xhs-style-save" type="button">保存自定义风格</button>
+              <button class="ghost-button" id="xhs-style-cancel" type="button" hidden>取消编辑</button>
+              <!-- 风格库迁移：导出为 JSON 文件 / 从 JSON 文件导入（跨电脑同步用） -->
+              <button class="ghost-button" id="xhs-style-export" type="button" title="把风格库导出为 JSON 文件，用于备份或迁移到其它电脑">导出风格</button>
+              <button class="ghost-button" id="xhs-style-import" type="button" title="从 JSON 文件导入风格库（可与另一台电脑导出的文件配合使用）">导入风格</button>
+              <input id="xhs-style-import-file" type="file" accept=".json,application/json" hidden />
+            </div>
+          </div>
+
+          <h2 class="xhs-section-title">2 · 确认模型</h2>
+          <div class="xhs-model-row">
+            <div class="xhs-model-block">
+              <label class="field-label" for="xhs-image-model">生图模型（来自通道设置）</label>
+              <div class="xhs-model-inline">
+                <select id="xhs-image-model" class="select-input"></select>
+                <select id="xhs-image-quality" class="select-input xhs-quality-select" aria-label="生图质量"></select>
+              </div>
+              <span class="field-note" id="xhs-image-model-note">出图比例固定为 3:4 竖版（小红书标准）</span>
+            </div>
+            <div class="xhs-model-block">
+              <span class="field-label">文本模型（用于策划大纲与提示词）</span>
+              <p class="xhs-llm-info" id="xhs-llm-info">未配置</p>
+              <a class="nav-link" href="./settings.html">去「AI 助手模型」配置 →</a>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 创作区：主题输入 + 进度（可折叠） -->
+      <section class="xhs-composer panel">
+        <div class="xhs-panel-head">
+          <h2 class="xhs-section-title">输入笔记主题</h2>
+          <div class="xhs-panel-head-actions">
+            <button class="ghost-button small-button" id="xhs-topic-clear" type="button" hidden>清空</button>
+            <button class="xhs-collapse-toggle" id="xhs-composer-toggle" type="button" aria-expanded="false" aria-controls="xhs-composer-body">展开 ▾</button>
+          </div>
+        </div>
+        <div class="xhs-panel-body" id="xhs-composer-body" hidden>
+          <textarea
+            id="xhs-topic"
+            class="text-input xhs-topic-input"
+            rows="3"
+            maxlength="500"
+            placeholder="例如：中国四大发明，包括造纸术、指南针、火药、印刷术。&#10;AI 会自动拆分子主题：先生成一张封面图，再为每个子主题生成一张讲解图。"
+          ></textarea>
+          <div class="xhs-sample-chips" id="xhs-sample-chips" aria-label="示例主题"></div>
+
+          <!-- 工具栏：生成张数与操作按钮同一行，整体居左 -->
+          <div class="xhs-composer-toolbar">
+            <div class="xhs-count-row">
+              <label class="field-label" for="xhs-page-count">生成张数</label>
+              <select id="xhs-page-count" class="select-input xhs-count-select" aria-label="选择生成张数"></select>
+              <!-- 自定义张数输入框：选择「自定义张数…」时显示，支持 1-50 张 -->
+              <input
+                id="xhs-page-count-custom"
+                class="text-input xhs-count-custom"
+                type="number"
+                min="1"
+                max="50"
+                step="1"
+                placeholder="1-50"
+                aria-label="自定义生成张数"
+                hidden
+              />
+              <span class="field-note" id="xhs-count-note"></span>
+            </div>
+            <div class="xhs-composer-actions">
+              <button class="primary-button" id="xhs-start" type="button">开始生成笔记</button>
+              <button class="ghost-button danger" id="xhs-stop" type="button" hidden>停止生成</button>
+            </div>
+          </div>
+
+          <div class="xhs-steps" id="xhs-steps" hidden>
+            <span class="xhs-step" data-step="1"><i>1</i>策划大纲</span>
+            <span class="xhs-step" data-step="2"><i>2</i>生成提示词</span>
+            <span class="xhs-step" data-step="3"><i>3</i>逐张出图</span>
+          </div>
+          <p class="xhs-status" id="xhs-status" hidden></p>
+        </div>
+      </section>
+
+      <!-- 结果区：大纲 + 每页图片卡片 -->
+      <main class="xhs-results">
+        <article class="xhs-outline panel" id="xhs-outline" hidden>
+          <p class="eyebrow">Note Outline</p>
+          <h2 class="xhs-outline-title" id="xhs-outline-title"></h2>
+          <p class="xhs-outline-sub" id="xhs-outline-sub"></p>
+          <div class="xhs-outline-highlights" id="xhs-outline-highlights"></div>
+        </article>
+
+        <div class="xhs-pages-grid" id="xhs-pages-grid"></div>
+      </main>
+    </div>
+
+    <!-- 单页卡片模板 -->
+    <template id="xhs-page-card-template">
+      <article class="xhs-page-card panel">
+        <div class="xhs-page-head">
+          <span class="xhs-page-tag"></span>
+          <h3 class="xhs-page-title"></h3>
+        </div>
+        <div class="xhs-page-visual">
+          <img class="xhs-page-img" alt="笔记配图" hidden />
+          <div class="xhs-page-placeholder">
+            <span class="xhs-page-spinner" hidden></span>
+            <span class="xhs-page-status-text">等待生成</span>
+          </div>
+        </div>
+        <details class="xhs-page-prompt-wrap">
+          <summary>查看生图提示词</summary>
+          <p class="xhs-page-prompt"></p>
+          <textarea class="xhs-page-prompt-edit" rows="6" hidden aria-label="编辑生图提示词"></textarea>
+          <div class="xhs-prompt-edit-actions" hidden>
+            <button class="primary-button js-save-prompt" type="button">保存</button>
+            <button class="ghost-button js-cancel-prompt" type="button">取消</button>
+          </div>
+        </details>
+        <div class="xhs-page-actions">
+          <button class="ghost-button js-copy-prompt" type="button">复制提示词</button>
+          <button class="ghost-button js-edit-prompt" type="button">编辑提示词</button>
+          <button class="ghost-button js-regen-page" type="button">重新生成</button>
+          <button class="ghost-button js-download-page" type="button">下载</button>
+        </div>
+      </article>
+    </template>
+
+    <script src="./app-config.js"></script>
+    <script src="./app-utils.js"></script>
+    <script src="./xhs.js"></script>
+  </body>
+</html>

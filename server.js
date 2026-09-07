@@ -3,6 +3,7 @@ const fsp = require("fs/promises");
 const http = require("http");
 const https = require("https");
 const path = require("path");
+const { exec } = require("child_process");
 const { URL } = require("url");
 
 const ROOT_DIR = __dirname;
@@ -128,6 +129,58 @@ async function imageSourceToBuffer(source) {
   };
 }
 
+/**
+ * 清洗上下文提供的主题（如小红书页标题、批量生图的变量组合），使其可安全用作文件名
+ * @param {string} raw 原始主题文本
+ * @returns {string} 清洗后的主题片段，最多 16 个字符；无有效内容时返回空串
+ */
+function sanitizeTopic(raw) {
+  const text = String(raw || "")
+    // 文件系统非法字符与换行统一替换为空格
+    .replace(/[\\/:*?"<>|\r\n]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!text) return "";
+  return text.slice(0, 16).trim();
+}
+
+/**
+ * 从生图提示词中启发式提取主题：
+ * 1. 去掉常见指令前缀（画一张 / 生成 / 帮我画 等）
+ * 2. 按中文标点（逗号、句号、顿号、分号、感叹号、问号、换行）切分，取第一个语义段作为主题
+ *    例：「一只小猫在客厅里玩耍，油画风格，高清细节」→「一只小猫在客厅里玩耍」
+ * @param {string} prompt 图片提示词
+ * @returns {string} 清洗后的主题片段，最多 12 个字符；无有效内容时返回空串
+ */
+function extractTopicSlug(prompt) {
+  let text = String(prompt || "").trim();
+  if (!text) return "";
+  // 去掉提示词开头的指令性前缀，让主题更聚焦于内容本身
+  // 注意先剥离「画风要求/风格要求」结构前缀，否则指令前缀正则会单独吃掉「画」字
+  text = text
+    .replace(/^\s*(画风要求|风格要求)[：:，,]?\s*/, "")
+    .replace(/^\s*(请|帮我|麻烦)?(画|生成|绘制|创作)(一张|一幅|一个|张|幅)?(图片|图像|插画|照片)?[：:，,]?\s*/, "");
+  // 取第一个语义段（遇到逗号/句号等即认为主题结束，后续多为风格、画质等修饰）
+  const firstSegment = text.split(/[，。；！？、,;!\n]+/)[0] || text;
+  return sanitizeTopic(firstSegment).slice(0, 12);
+}
+
+// 保存请求串行化队列：并行生成多张图时会同时触发保存，
+// index.json 的读-改-写必须排队执行，否则并发写入会互相覆盖导致索引丢记录
+let saveQueue = Promise.resolve();
+
+/**
+ * 将保存任务加入串行队列，保证同一时刻只有一个保存流程在写磁盘
+ * @param {Function} task 返回 Promise 的保存任务
+ * @returns {Promise} 该任务的执行结果
+ */
+function enqueueSave(task) {
+  const run = saveQueue.then(task, task); // 前一个任务失败也不阻塞后续保存
+  // 队列尾部捕获错误，避免 unhandled rejection 影响后续任务排队
+  saveQueue = run.then(() => undefined, () => undefined);
+  return run;
+}
+
 async function saveRecordToDisk(record) {
   const now = Date.now();
   const recordId = normalizeRecordId(record && record.id) || `record-${now}`;
@@ -140,13 +193,26 @@ async function saveRecordToDisk(record) {
   const folderPath = path.join(LIBRARY_DIR, folderName);
   await fsp.mkdir(folderPath, { recursive: true });
 
+  // 文件名命名规则：主题 + 时间戳 + 序号
+  // 主题来源优先级：record.topic（上下文显式主题，如小红书页标题/批量生图变量组合）
+  //              > 提示词启发式提取（第一语义段）
+  const topic = sanitizeTopic(record && record.topic) || extractTopicSlug((record && (record.rawPrompt || record.prompt)) || "");
+  const timestamp = new Date(record.time || now)
+    .toISOString()
+    .replace(/[-:T]/g, "")
+    .replace(/\..+$/, "")
+    .slice(0, 14); // 形如 20260901143025
+  const topicPart = topic ? `${topic}-` : "";
+
   const savedPaths = [];
   for (let index = 0; index < images.length; index += 1) {
     const source = images[index];
     try {
       const image = await imageSourceToBuffer(source);
       const extension = getImageExtension(image.mimeType);
-      const filename = `${recordId}-${String(index + 1).padStart(2, "0")}${extension}`;
+      // 同一记录有多张图时追加序号区分
+      const suffix = images.length > 1 ? `-${String(index + 1).padStart(2, "0")}` : "";
+      const filename = `${topicPart}${timestamp}${suffix}${extension}`;
       await fsp.writeFile(path.join(folderPath, filename), image.buffer);
       savedPaths.push(`/generated-images/${folderName}/${filename}`);
     } catch (error) {
@@ -190,6 +256,31 @@ async function deleteImageRecords(recordIds) {
     removedId: removedIds[0] || "",
     remaining: nextRecords.length
   };
+}
+
+/**
+ * 用系统文件管理器打开本地图库文件夹
+ * Windows: explorer / macOS: open / Linux: xdg-open
+ */
+function openLibraryFolder() {
+  return ensureLibrary().then(() => new Promise((resolve, reject) => {
+    let command;
+    if (process.platform === "win32") {
+      command = `explorer "${LIBRARY_DIR}"`;
+    } else if (process.platform === "darwin") {
+      command = `open "${LIBRARY_DIR}"`;
+    } else {
+      command = `xdg-open "${LIBRARY_DIR}"`;
+    }
+    exec(command, (error) => {
+      // Windows 的 explorer 打开文件夹时即使成功也可能返回非 0 退出码，视为成功
+      if (error && process.platform !== "win32") {
+        reject(error);
+        return;
+      }
+      resolve();
+    });
+  }));
 }
 
 async function readBody(req) {
@@ -494,8 +585,19 @@ function createServer() {
 
       if (req.method === "POST" && pathname === "/api/image-studio/save") {
         const body = await readBody(req);
-        const record = await saveRecordToDisk(body.record || body);
+        // 串行队列执行：避免并行生成时多个保存同时读改写 index.json 互相覆盖
+        const record = await enqueueSave(() => saveRecordToDisk(body.record || body));
         sendJson(res, 200, { ok: true, record });
+        return;
+      }
+
+      if (req.method === "POST" && pathname === "/api/image-studio/open-folder") {
+        openLibraryFolder()
+          .then(() => sendJson(res, 200, { ok: true, path: LIBRARY_DIR }))
+          .catch((error) => {
+            console.error("[server] 打开图库文件夹失败", error);
+            sendJson(res, 500, { error: "打开文件夹失败：" + (error && error.message ? error.message : "未知错误") });
+          });
         return;
       }
 
@@ -504,7 +606,8 @@ function createServer() {
         const recordIds = Array.isArray(body.ids) && body.ids.length > 0
           ? body.ids
           : [body.id || body.recordId];
-        const result = await deleteImageRecords(recordIds);
+        // 删除同样会写 index.json，纳入同一串行队列避免与保存竞态
+        const result = await enqueueSave(() => deleteImageRecords(recordIds));
         sendJson(res, 200, result);
         return;
       }

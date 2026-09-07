@@ -19,6 +19,7 @@
             <a class="nav-link" href="./help.html">使用说明</a>
             <a class="nav-link" href="./gallery.html" target="_blank" rel="noopener">本地图片库</a>
             <a class="nav-link" href="./prompts.html" target="_blank" rel="noopener">提示词库</a>
+            <a class="nav-link" href="./xhs.html" target="_blank" rel="noopener">小红书笔记</a>
           </div>
         </section>
 
@@ -183,7 +184,10 @@
                       <div class="template-guide-note">⚠ 只有 <code>{变量}</code> 这种半角大括号才会被识别为变量，<code>【变量】</code> <code>（变量）</code> 及其它符号无效</div>
                     </div>
                     <div class="template-field">
-                      <label class="field-label" for="template-values">变量值（每行一组，逗号分隔多个变量）</label>
+                      <div class="batch-input-head">
+                        <label class="field-label" for="template-values">变量值（每行一组，逗号分隔多个变量）</label>
+                        <button class="ghost-button small-button" id="clear-template-values" type="button" title="清空变量值内容">清空</button>
+                      </div>
                       <textarea
                         id="template-values"
                         class="text-input"
@@ -192,7 +196,7 @@
 小狗,公园"
                       ></textarea>
                       <div class="template-footer">
-                        <button class="ghost-button small-button" id="apply-template" type="button">填充到输入框</button>
+                        <button class="ghost-button small-button" id="apply-template" type="button">填充到生成队列</button>
                         <span class="template-summary" id="template-summary">将生成 0 条</span>
                       </div>
                     </div>

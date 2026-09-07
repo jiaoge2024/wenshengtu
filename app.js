@@ -9,6 +9,8 @@
     mode: "text",
     taskMode: window.localStorage.getItem(__APP.STORAGE_KEYS.taskMode) || "single",
     batchQueue: [],
+    batchVarsMap: {},       // 模板展开的提示词 → 变量值组合映射（用于图片文件名主题）
+    templateQueue: null,    // 模板填充的生成队列（保留模板原文，改变量值可反复填充）
     currentAccount: null,
     generationQueue: [],   // 生图排队队列：每个元素为 { id, prompt, runConfig }
     queueProcessing: false  // 是否正在处理排队队列
@@ -57,6 +59,7 @@
     batchQueueList: document.getElementById("batch-queue-list"),
     templateBody: document.getElementById("template-body"),
     templateValues: document.getElementById("template-values"),
+    clearTemplateValues: document.getElementById("clear-template-values"),
     templateSummary: document.getElementById("template-summary"),
     applyTemplate: document.getElementById("apply-template"),
     composerHelperText: document.getElementById("composer-helper-text"),
@@ -1274,6 +1277,8 @@ return "生图通道";
 
     elements.batchPromptInput.value = "";
     state.batchQueue = [];
+    state.batchVarsMap = {};  // 清空模板变量映射，避免残留映射影响后续文件名主题
+    state.templateQueue = null; // 模板队列一并失效
     persistBatchDraft();
     renderBatchQueue();
     setStatus("待命", "批量提示词已清空。");
@@ -1718,6 +1723,8 @@ return "生图通道";
   async function executePromptGeneration(rawPrompt, runConfig, options) {
     var generationSignal = state.abortController ? state.abortController.signal : null;
     var clearPromptOnSuccess = options && options.clearPromptOnSuccess;
+    // 文件名主题：批量模板生成时为「变量值组合」；普通生成不传，由服务端从提示词启发式提取
+    var recordTopic = options && options.topic ? String(options.topic) : "";
     var generationStartedAt = Date.now();
     var displayPrompt = rawPrompt || "图片生成";
     var userMessage = {
@@ -1802,6 +1809,7 @@ return "生图通道";
         id: pendingMessage.id,
         prompt: result.finalPrompt,
         rawPrompt: displayPrompt,
+        topic: recordTopic,
         images: result.images,
         aspectRatio: runConfig.aspectRatio,
         imageQuality: runConfig.imageQuality,
@@ -2121,15 +2129,22 @@ return "生图通道";
   }
 
   async function startBatchGeneration() {
-    var prompts = __APP.parseBatchPrompts(elements.batchPromptInput.value);
-    if (prompts.length === 0) {
-      setStatus("待命", "先输入至少一段批量提示词，再开始批量生成。");
-      elements.batchPromptInput.focus();
-      return;
+    // 优先使用模板填充的生成队列（模板原文仍在输入框中）；无队列时回退到按输入框内容逐段拆分
+    if (state.templateQueue && state.templateQueue.length > 0) {
+      state.batchQueue = state.templateQueue.map(function (entry) {
+        return { id: entry.id, prompt: entry.prompt, status: "pending", note: "" };
+      });
+    } else {
+      var prompts = __APP.parseBatchPrompts(elements.batchPromptInput.value);
+      if (prompts.length === 0) {
+        setStatus("待命", "先输入至少一段批量提示词，或先通过「填充到生成队列」构建队列，再开始批量生成。");
+        elements.batchPromptInput.focus();
+        return;
+      }
+      state.batchQueue = __APP.createBatchQueueEntries(prompts);
     }
 
     var runConfig = getGenerationRunConfig();
-    state.batchQueue = __APP.createBatchQueueEntries(prompts);
     beginGenerationSession();
     renderBatchQueue();
 
@@ -2147,7 +2162,11 @@ return "生图通道";
           "第 " + (index + 1) + " / " + state.batchQueue.length + " 条 · " + runConfig.modeLabel + " · " + runConfig.aspectRatio + " · " + runConfig.imageQualityLabel + " · " + runConfig.styleTemplateLabel
         );
 
-        var outcome = await executePromptGeneration(entry.prompt, runConfig, { clearPromptOnSuccess: false });
+        var outcome = await executePromptGeneration(entry.prompt, runConfig, {
+          clearPromptOnSuccess: false,
+          // 模板变量展开的提示词：以「唯一变量值组合」作为图片文件名主题
+          topic: state.batchVarsMap[entry.prompt] || ""
+        });
         if (outcome.status === "success" || outcome.status === "partial") {
           entry.status = "success";
           entry.note = outcome.status === "partial"
@@ -2259,6 +2278,8 @@ return "生图通道";
       persistBatchDraft();
       if (!state.generating) {
         state.batchQueue = [];
+        // 模板被编辑后，之前填充的生成队列已过时，一并失效
+        state.templateQueue = null;
         renderBatchQueue();
       }
       updateTemplatePreview();
@@ -2282,7 +2303,7 @@ return "生图通道";
         var template = elements.batchPromptInput.value.trim();
         var valuesText = elements.templateValues.value.trim();
         if (!template) {
-          setStatus("待命", "先在批量提示词输入框中写好模板，再点「填充到输入框」。");
+          setStatus("待命", "先在批量提示词输入框中写好模板，再点「填充到生成队列」。");
           elements.batchPromptInput.focus();
           return;
         }
@@ -2291,20 +2312,39 @@ return "生图通道";
           elements.templateValues.focus();
           return;
         }
-        var results = __APP.expandTemplateVars(template, valuesText);
+        var results = __APP.expandTemplateVarsDetailed(template, valuesText);
         if (results.length === 0) {
           return;
         }
-        elements.batchPromptInput.value = results.join("\n\n");
-        persistBatchDraft();
-        state.batchQueue = [];
+        // 展开结果进入独立生成队列，批量输入框中的模板原文保持不动——
+        // 这样修改变量值后可直接再次填充，无需重写模板
+        state.templateQueue = __APP.createBatchQueueEntries(results.map(function (item) { return item.prompt; }));
+        // 记录每条展开提示词对应的「唯一变量值组合」，生成保存时作为文件名主题
+        state.batchVarsMap = {};
+        results.forEach(function (item) {
+          if (item.vars) {
+            state.batchVarsMap[item.prompt] = item.vars;
+          }
+        });
+        // 预览待生成队列（克隆一份，执行时会再克隆，队列本体保留供反复生成）
+        state.batchQueue = state.templateQueue.map(function (entry) {
+          return { id: entry.id, prompt: entry.prompt, status: "pending", note: "" };
+        });
         renderBatchQueue();
         updateTemplatePreview();
-        setStatus("待命", "已展开 " + results.length + " 条提示词。检查无误后点击「开始批量」。");
+        setStatus("待命", "已填充 " + results.length + " 条到生成队列。模板保留在输入框，修改变量值后可再次填充。");
       });
     }
     if (elements.templateValues) {
       elements.templateValues.addEventListener("input", updateTemplatePreview);
+    }
+    // 变量值「清空」按钮：一键清空变量值内容并刷新预览计数
+    if (elements.clearTemplateValues && elements.templateValues) {
+      elements.clearTemplateValues.addEventListener("click", function () {
+        elements.templateValues.value = "";
+        updateTemplatePreview();
+        elements.templateValues.focus();
+      });
     }
 
     elements.modeButtons.forEach(function (button) {

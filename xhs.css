@@ -1,0 +1,655 @@
+/* ==================== 小红书图文笔记板块 ==================== */
+
+/* 页面整体骨架：单列布局，与提示词库页面保持一致 */
+.xhs-shell {
+  width: min(1180px, calc(100% - 28px));
+  margin: 0 auto;
+  padding: 24px 0 48px;
+  display: grid;
+  gap: 16px;
+}
+
+/* 顶部标题区 */
+.xhs-hero {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 22px 24px;
+  flex-wrap: wrap;
+}
+
+.xhs-hero h1 {
+  font-size: 1.7rem;
+  margin: 4px 0 8px;
+  /* 覆盖全站 h1 的 max-width: 12ch 限制，避免「小红书图文笔记」被折成两行 */
+  max-width: none;
+}
+
+.xhs-hero .hero-text {
+  margin: 0;
+  max-width: 620px;
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+.xhs-hero .hero-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* 各区块标题 */
+.xhs-section-title {
+  margin: 0 0 12px;
+  font-size: 1.02rem;
+}
+
+/* 配置区 */
+.xhs-config,
+.xhs-composer {
+  padding: 20px 24px;
+}
+
+/* 可折叠卡片的头部行：标题 + 展开/收起按钮 */
+.xhs-panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.xhs-panel-head .xhs-section-title {
+  margin: 0;
+}
+
+/* 折叠区内容：与标题保持间距 */
+.xhs-panel-body {
+  margin-top: 16px;
+}
+
+/* 展开/收起按钮 */
+/* 卡片头部右侧操作区：清空按钮 + 折叠按钮并排 */
+.xhs-panel-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.xhs-collapse-toggle {
+  font: inherit;
+  font-size: 0.82rem;
+  color: var(--muted);
+  background: var(--button-paper);
+  border: 1px solid var(--button-line);
+  border-radius: 999px;
+  padding: 5px 14px;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.xhs-collapse-toggle:hover {
+  color: var(--ink);
+  border-color: var(--button-line-strong);
+}
+
+/* 风格卡片网格：限高约 3 行，风格很多时内部滚动，页面不会被无限拉长 */
+.xhs-style-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+  max-height: 430px;
+  overflow-y: auto;
+  padding: 2px 8px 6px 2px; /* 给滚动条和卡片阴影留出空间 */
+  scrollbar-width: thin;
+  scrollbar-color: var(--button-line) transparent;
+}
+
+/* WebKit 内核滚动条：细圆角，与整体纸张风格一致 */
+.xhs-style-cards::-webkit-scrollbar {
+  width: 6px;
+}
+
+.xhs-style-cards::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.xhs-style-cards::-webkit-scrollbar-thumb {
+  background: var(--button-line);
+  border-radius: 3px;
+}
+
+.xhs-style-cards::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
+}
+
+/* 风格搜索框（数量达到阈值时显示） */
+.xhs-style-search {
+  margin-bottom: 12px;
+  max-width: 320px;
+}
+
+/* 网格子项允许收缩，防止长不可断行内容把卡片/面板撑宽 */
+.xhs-style-cards > * {
+  min-width: 0;
+}
+
+.xhs-style-card {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+  text-align: left;
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px solid var(--button-line);
+  background: var(--button-paper);
+  cursor: pointer;
+  transition: border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+  font: inherit;
+  color: inherit;
+}
+
+.xhs-style-card:hover:not(:disabled) {
+  border-color: var(--button-line-strong);
+  transform: translateY(-1px);
+}
+
+.xhs-style-card.is-active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent), 0 10px 22px rgba(204, 109, 73, 0.16);
+}
+
+.xhs-style-card:disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
+}
+
+.xhs-style-card-emoji {
+  font-size: 1.4rem;
+  display: block;
+  margin-bottom: 6px;
+}
+
+.xhs-style-card-name {
+  display: block;
+  font-weight: 700;
+  margin-bottom: 4px;
+  /* 允许在任意字符处折行，避免长英文串/下划线/破折号横向溢出 */
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.xhs-style-card-desc {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--muted);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.xhs-style-card-soon {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  border: 1px solid var(--button-line);
+  border-radius: 999px;
+  padding: 2px 8px;
+  background: rgba(255, 253, 248, 0.9);
+}
+
+/* 风格库为空时的提示文案 */
+.xhs-style-empty {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+/* 自定义风格卡片上的编辑 / 删除按钮 */
+.xhs-style-card-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.xhs-style-action {
+  border: 1px solid var(--button-line);
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.75rem;
+  padding: 3px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.75rem;
+}
+
+.xhs-style-action:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.xhs-style-action.danger:hover {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+/* 自定义风格表单（添加 / 编辑） */
+.xhs-style-form {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 20px;
+  padding: 14px;
+  border: 1px dashed var(--button-line);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.55);
+  min-width: 0;
+}
+
+.xhs-style-form .field-label {
+  margin: 0;
+}
+
+.xhs-style-prompt-input {
+  resize: vertical;
+  min-height: 64px;
+}
+
+.xhs-style-form-actions {
+  display: flex;
+  gap: 10px;
+}
+
+/* 模型选择行 */
+.xhs-model-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+.xhs-model-block {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+}
+
+.xhs-llm-info {
+  margin: 0;
+  font-weight: 700;
+  color: var(--accent-2);
+}
+
+/* 生图模型 + 质量选择并排 */
+.xhs-model-inline {
+  display: flex;
+  gap: 8px;
+}
+
+.xhs-quality-select {
+  width: auto;
+  min-width: 108px;
+}
+
+.xhs-llm-info.is-empty {
+  color: var(--danger);
+}
+
+.xhs-model-block .nav-link {
+  justify-self: start;
+  font-size: 0.85rem;
+}
+
+/* 主题输入区 */
+.xhs-topic-input {
+  width: 100%;
+  resize: vertical;
+  line-height: 1.6;
+}
+
+.xhs-sample-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0 4px;
+}
+
+.xhs-sample-chip {
+  font-size: 0.8rem;
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px dashed var(--button-line-strong);
+  background: rgba(255, 253, 248, 0.7);
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.xhs-sample-chip:hover {
+  color: var(--ink);
+  border-color: var(--accent);
+}
+
+/* 工具栏：生成张数与操作按钮同一行，整体居左，窄屏时自动换行 */
+.xhs-composer-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  margin-top: 12px;
+}
+
+/* 生成张数选择：工具栏左侧 */
+.xhs-count-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.xhs-count-row .field-label {
+  margin: 0;
+  white-space: nowrap;
+}
+
+.xhs-count-select {
+  width: auto;
+  min-width: 88px;
+}
+
+/* 自定义张数输入框：窄宽度与下拉框并排（选择「自定义张数…」时显示） */
+.xhs-count-custom {
+  width: 76px;
+  padding: 7px 8px;
+}
+
+/* 操作按钮：与张数选择同行，等宽按钮保持整齐 */
+.xhs-composer-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.xhs-composer-actions .primary-button,
+.xhs-composer-actions .ghost-button {
+  min-width: 132px;
+  justify-content: center;
+  padding: 8px 14px;
+}
+
+/* 生成进度步骤条：居左排布 */
+.xhs-steps {
+  display: flex;
+  gap: 18px;
+  margin-top: 14px;
+  flex-wrap: wrap;
+}
+
+.xhs-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.xhs-step i {
+  font-style: normal;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid var(--button-line-strong);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  background: rgba(255, 253, 248, 0.9);
+}
+
+.xhs-step.is-active {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.xhs-step.is-active i {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+
+.xhs-step.is-done {
+  color: var(--accent-2);
+}
+
+.xhs-step.is-done i {
+  border-color: var(--accent-2);
+  background: var(--accent-2);
+  color: #fff;
+}
+
+/* 状态文字 */
+.xhs-status {
+  margin: 12px 0 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.6;
+}
+
+.xhs-status.is-error {
+  color: var(--danger);
+}
+
+/* 结果区 */
+.xhs-results {
+  display: grid;
+  gap: 16px;
+}
+
+/* 大纲卡片 */
+.xhs-outline {
+  padding: 20px 24px;
+}
+
+.xhs-outline-title {
+  margin: 4px 0 6px;
+  font-size: 1.25rem;
+}
+
+.xhs-outline-sub {
+  margin: 0 0 12px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.xhs-outline-highlights {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.xhs-outline-chip {
+  font-size: 0.8rem;
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--button-line);
+  background: rgba(255, 253, 248, 0.85);
+}
+
+/* 笔记页面卡片网格：3:4 竖版预览 */
+.xhs-pages-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 16px;
+}
+
+.xhs-page-card {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  align-content: start;
+}
+
+.xhs-page-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.xhs-page-tag {
+  flex: none;
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+}
+
+.xhs-page-tag.is-content {
+  background: var(--accent-2);
+}
+
+.xhs-page-title {
+  margin: 0;
+  font-size: 0.98rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 图片预览区（3:4 比例） */
+.xhs-page-visual {
+  position: relative;
+  aspect-ratio: 3 / 4;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background:
+    radial-gradient(circle at 30% 20%, rgba(204, 109, 73, 0.1), transparent 50%),
+    linear-gradient(160deg, #faf4ea, #f0e5d4);
+}
+
+.xhs-page-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.xhs-page-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 0.85rem;
+  padding: 12px;
+  text-align: center;
+}
+
+.xhs-page-placeholder.is-error {
+  color: var(--danger);
+}
+
+/* 等待旋转动画 */
+.xhs-page-spinner {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 3px solid rgba(204, 109, 73, 0.25);
+  border-top-color: var(--accent);
+  animation: xhs-spin 0.9s linear infinite;
+}
+
+@keyframes xhs-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 提示词折叠区 */
+.xhs-page-prompt-wrap {
+  font-size: 0.82rem;
+}
+
+.xhs-page-prompt-wrap summary {
+  cursor: pointer;
+  color: var(--muted);
+  user-select: none;
+}
+
+.xhs-page-prompt {
+  margin: 8px 0 0;
+  color: var(--ink);
+  line-height: 1.6;
+  max-height: 160px;
+  overflow-y: auto;
+  background: rgba(255, 253, 248, 0.8);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px;
+}
+
+/* 提示词编辑输入框：与展示区外观一致，可自由输入 */
+.xhs-page-prompt-edit {
+  width: 100%;
+  margin-top: 8px;
+  font: inherit;
+  font-size: inherit;
+  line-height: 1.6;
+  color: var(--ink);
+  background: rgba(255, 253, 248, 0.8);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px;
+  resize: vertical;
+}
+
+.xhs-page-prompt-edit:focus {
+  outline: none;
+  border-color: var(--button-line-strong);
+}
+
+/* 「编辑提示词」进入编辑态时，隐藏底部操作行，展示保存/取消 */
+.xhs-prompt-edit-actions {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.xhs-prompt-edit-actions .primary-button,
+.xhs-prompt-edit-actions .ghost-button {
+  font-size: 0.82rem;
+  padding: 6px 10px;
+}
+
+/* 卡片操作按钮：2×2 等宽网格，整齐不换行错落 */
+.xhs-page-actions {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.xhs-page-actions .ghost-button {
+  font-size: 0.8rem;
+  padding: 6px 10px;
+}
+
+/* 小屏适配 */
+@media (max-width: 640px) {
+  .xhs-hero {
+    flex-direction: column;
+  }
+
+  .xhs-pages-grid {
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  }
+}

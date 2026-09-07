@@ -14,6 +14,7 @@
     latestTime: document.getElementById("latest-time"),
     filter: document.getElementById("gallery-filter"),
     refresh: document.getElementById("refresh-gallery"),
+    openFolder: document.getElementById("open-local-folder"),
     template: document.getElementById("gallery-card-template"),
     lightbox: document.getElementById("gallery-lightbox"),
     lightboxImage: document.getElementById("lightbox-image"),
@@ -876,6 +877,30 @@
 
   elements.refresh.addEventListener("click", function () {
     renderCards();
+  });
+
+  // 打开本地图库文件夹：调用本地服务的 API，用系统文件管理器打开 generated-images 目录
+  elements.openFolder.addEventListener("click", async function () {
+    const button = elements.openFolder;
+    button.disabled = true;
+    button.textContent = "正在打开...";
+    try {
+      const response = await fetch("/api/image-studio/open-folder", { method: "POST" });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || `请求失败（${response.status}）`);
+      }
+      button.textContent = "已打开 ✓";
+      setTimeout(() => {
+        button.textContent = "打开本地图库";
+      }, 2000);
+    } catch (error) {
+      console.error("[gallery] 打开本地图库失败", error);
+      button.textContent = "打开本地图库";
+      window.alert("打开本地图库失败：" + (error && error.message ? error.message : "未知错误") + "\n请确认本地服务（start.bat）正在运行。");
+    } finally {
+      button.disabled = false;
+    }
   });
 
   elements.selectVisibleRecords.addEventListener("click", function () {

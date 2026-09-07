@@ -201,7 +201,14 @@ __APP.isCustomImageModel = function (value) {
     });
   };
 
-  __APP.expandTemplateVars = function (template, valuesText) {
+  /**
+   * 展开模板变量（详细版）：返回每条展开后的提示词及其对应的「唯一变量值组合」
+   * vars 字段用于图片文件名命名：批量生成的每张图以变量组合作为主题，便于区分和检索
+   * @param {string} template 含 {变量} 占位符的模板
+   * @param {string} valuesText 变量值文本（每行一组，逗号分隔多个变量）
+   * @returns {Array<{prompt: string, vars: string}>} prompt=展开后的提示词，vars=该行变量值组合（空格连接）
+   */
+  __APP.expandTemplateVarsDetailed = function (template, valuesText) {
     var lines = valuesText.split("\n").map(function (line) { return line.trim(); }).filter(Boolean);
     if (lines.length === 0) {
       return [];
@@ -217,8 +224,11 @@ __APP.isCustomImageModel = function (value) {
       }
     }
 
+    // 模板不含变量时：每行即一条完整提示词，无变量组合
     if (varNames.length === 0) {
-      return lines;
+      return lines.map(function (line) {
+        return { prompt: line, vars: "" };
+      });
     }
 
     return lines.map(function (line) {
@@ -231,7 +241,16 @@ __APP.isCustomImageModel = function (value) {
         var reLocal = new RegExp("\\{" + name + "\\}", "g");
         result = result.replace(reLocal, parts[idx] || "");
       });
-      return result;
+      // 变量值组合：取每个变量的实际值，过滤空值后用空格连接（如「小猫 客厅」）
+      var usedVars = parts.slice(0, varNames.length).filter(function (p) { return p; });
+      return { prompt: result, vars: usedVars.join(" ") };
+    });
+  };
+
+  /** 展开模板变量（兼容旧接口）：只返回展开后的提示词数组 */
+  __APP.expandTemplateVars = function (template, valuesText) {
+    return __APP.expandTemplateVarsDetailed(template, valuesText).map(function (item) {
+      return item.prompt;
     });
   };
 
