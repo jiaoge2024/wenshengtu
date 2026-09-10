@@ -33,7 +33,9 @@
     promptLibrary: "image-studio:prompt-library-v1",
     xhsDraft: "image-studio:xhs-draft",
     xhsCheckpoint: "image-studio:xhs-checkpoint",
-    xhsStyles: "image-studio:xhs-styles"
+    xhsStyles: "image-studio:xhs-styles",
+    img2imgDraft: "image-studio:img2img-draft",
+    img2imgVisionModel: "image-studio:img2img-vision-model"
   };
 
   // 旧的 localStorage 键前缀（仅用于一次性向后兼容迁移，不再用于新代码中）
@@ -149,6 +151,8 @@
         baseUrl: "https://api.apimart.ai",
         apiKey: "",
         model: "gpt-image-2",
+        // 内置预置的多个生图模型（可在设置页增删）
+        models: ["gpt-image-2", "gpt-image-2.5", "gpt-image-2.6"],
         enabled: false,
         builtin: true
       },
@@ -160,6 +164,7 @@
         baseUrl: "https://wawapii.com",
         apiKey: "",
         model: "gpt-image-2",
+        models: ["gpt-image-2", "gpt-image-2.5", "gpt-image-2.6"],
         enabled: false,
         builtin: true
       }
@@ -186,6 +191,15 @@
               parsed.push(defaultCh);
               changed = true;
             }
+          });
+          // 给旧版内置通道补充默认多模型列表（仅限未自定义过模型、未配置过 models 的通道）
+          defaults.forEach(function (defaultCh) {
+            parsed.forEach(function (ch) {
+              if (ch.id === defaultCh.id && ch.builtin && !Array.isArray(ch.models) && (!ch.model || ch.model === defaultCh.model)) {
+                ch.models = defaultCh.models.slice();
+                changed = true;
+              }
+            });
           });
           if (changed) {
             window.localStorage.setItem(__APP.STORAGE_KEYS.imageChannels, JSON.stringify(parsed));
@@ -572,6 +586,72 @@
     "3. 提示词中出现的文字内容必须用中文，且与大纲完全一致，不要写错别字",
     "4. 每条提示词要具体描述画面构图、主体元素与讲解信息的呈现方式；不要直接写画风描述（画风由系统按所选风格统一拼接）",
     "5. 只输出 JSON 数组本身，数组的 index 从 0 开始，0 为封面，之后依次对应 pages"
+  ].join("\n");
+
+  // ==================== 图生图工作台板块 ====================
+
+  // 上传图片送视觉模型分析前的压缩参数：限制最大边长并转 JPEG，
+  // 避免手机原图（几 MB）直接 base64 导致请求体过大、token 浪费或接口超时
+  __APP.IMG2IMG_MAX_UPLOAD_EDGE = 1280;
+  __APP.IMG2IMG_JPEG_QUALITY = 0.85;
+  // 多图合成模式最多可上传的图片数
+  __APP.IMG2IMG_MAX_UPLOAD_IMAGES = 9;
+  // 单次生图请求（含异步任务轮询）的客户端硬超时
+  __APP.IMG2IMG_GENERATE_TIMEOUT_MS = 12 * 60 * 1000;
+
+  /**
+   * 图生图功能模式
+   */
+  __APP.IMG2IMG_MODES = [
+    {
+      value: "extract",
+      label: "提取提示词",
+      desc: "上传一张图，一键得到中文 + 英文绘图提示词",
+      maxImages: 1,
+      runLabel: "一键提取提示词",
+      needGeneration: false
+    },
+    {
+      value: "edit",
+      label: "修改图片",
+      desc: "上传一张图，说出修改要求，AI 直接改图（如把猫换成小狗）",
+      maxImages: 1,
+      runLabel: "开始修改",
+      needGeneration: true
+    },
+    {
+      value: "compose",
+      label: "多图合成",
+      desc: "上传最多 9 张图，描述组合方式（如把图 A 放进图 B）",
+      maxImages: 9,
+      runLabel: "开始合成",
+      needGeneration: true
+    }
+  ];
+
+  /** 图生图「提取提示词」模式指令 */
+  __APP.IMG2IMG_EXTRACT_INSTRUCTION = [
+    "你是一名资深 AI 生图提示词工程师，擅长把图片转写为高质量生图提示词。",
+    "用户会提供一张图片，请仔细观察后输出一个 JSON 对象，严格只输出 JSON，不要输出任何解释、前后缀或代码块标记，格式如下：",
+    '{"summary":"一句话画面概述","promptZh":"中文提示词","promptEn":"English prompt"}',
+    "要求：",
+    "1. promptZh 用中文书写，融合主体、场景、构图、风格、配色、光影等要素，200 字以内，具体可执行，不出现「图中」「该图」等指代词",
+    "2. promptEn 是 promptZh 的地道英文版本，遵循 Stable Diffusion / Midjourney 提示词习惯，用逗号分隔关键词短语",
+    "3. 图中出现文字时必须在两个版本的提示词中原样保留（中文用「」包裹，英文用双引号包裹），不要写错别字，也不要编造原图不存在的文字",
+    "4. 输出必须是严格合法的 JSON：所有键名和字符串值都用英文双引号包裹"
+  ].join("\n");
+
+  /** 图生图「修改图片 / 多图合成」模式指令：按用户要求输出改造后的中文提示词 */
+  __APP.IMG2IMG_EDIT_INSTRUCTION = [
+    "你是一名资深 AI 生图提示词工程师，擅长根据用户要求修改或合成图片。",
+    "用户会提供一张或多张图片（多张时会在图片说明前缀标注「图A」「图B」等），同时给出修改/合成要求。",
+    "请综合图片内容与用户要求，输出一个 JSON 对象，严格只输出 JSON，不要输出任何解释、前后缀或代码块标记，格式如下：",
+    '{"summary":"修改方案说明","promptZh":"改造后的中文提示词"}',
+    "要求：",
+    "1. promptZh 用中文书写，完整描述改造后的目标画面，包含主体、场景、构图、风格、配色、光影等要素，200 字以内，具体可执行",
+    "2. 必须严格遵守用户的修改/合成要求，不要遗漏关键点；未要求改动的元素要尽量保留原貌",
+    "3. 图中出现文字时必须原样保留（中文用「」包裹），不要写错别字，也不要编造原图不存在的文字",
+    "4. 输出必须是严格合法的 JSON：所有键名和字符串值都用英文双引号包裹"
   ].join("\n");
 
   __APP.normalizeImageQuality = function (value) {

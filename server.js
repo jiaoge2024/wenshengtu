@@ -497,6 +497,24 @@ async function handleProxy(req, res) {
     if (targetBody && targetMethod !== "GET") {
       fetchOptions.body = targetBody;
     }
+    // multipart：客户端传来的 base64 图片重建为 FormData（图片编辑接口上传用）
+    if (body.multipart && typeof body.multipart === "object" && targetMethod !== "GET") {
+      const formData = new FormData();
+      const fields = body.multipart.fields && typeof body.multipart.fields === "object" ? body.multipart.fields : {};
+      Object.keys(fields).forEach((key) => formData.append(key, String(fields[key])));
+      const files = Array.isArray(body.multipart.files) ? body.multipart.files : [];
+      files.forEach((file) => {
+        const buffer = Buffer.from(String(file.base64 || ""), "base64");
+        formData.append(
+          String(file.field || "image"),
+          new Blob([buffer], { type: String(file.contentType || "image/png") }),
+          String(file.filename || "image.png")
+        );
+      });
+      delete fetchOptions.headers["Content-Type"];
+      delete fetchOptions.headers["content-type"];
+      fetchOptions.body = formData;
+    }
 
     const proxyRes = await fetchViaProxy(targetUrl, fetchOptions);
     const proxyText = await proxyRes.text();

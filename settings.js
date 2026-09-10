@@ -162,10 +162,11 @@
       + '    <input class="text-input ch-apikey-input" type="password" value="' + escapeHtml(ch.apiKey || "") + '" placeholder="输入 API Key" data-field="apiKey" />'
       + '    <p class="ch-field-note">' + getChannelApiKeyHint(ch) + '</p>'
       + '  </div>'
-      // 模型名
+      // 模型名（支持多个：逗号或换行分隔）
       + '  <div class="ch-field-row">'
-      + '    <label class="ch-field-label">模型名</label>'
-      + '    <input class="text-input ch-model-input" type="text" value="' + escapeHtml(ch.model || "") + '" placeholder="例如：gpt-image-2" data-field="model" />'
+      + '    <label class="ch-field-label">模型名（支持多个）</label>'
+      + '    <input class="text-input ch-model-input" type="text" value="' + escapeHtml(getChannelModelsText(ch)) + '" placeholder="例如：gpt-image-2, gpt-image-2.5, gpt-image-2.6" data-field="model" />'
+      + '    <p class="ch-field-note">多个模型用逗号或换行分隔，创作台的下拉框会按通道分组展示全部模型。</p>'
       + '  </div>'
       + '</div>'
       // 操作按钮
@@ -265,9 +266,40 @@
     }
   }
 
+  /**
+   * 读取通道的模型名展示文本（models 数组优先，兼容旧版单 model）
+   * @param {Object} ch 通道配置对象
+   * @returns {string} 逗号 + 空格分隔的模型名文本
+   */
+  function getChannelModelsText(ch) {
+    var models = window.__APP && window.__APP.getChannelModels ? window.__APP.getChannelModels(ch) : (ch.model ? [ch.model] : []);
+    return models.join(", ");
+  }
+
+  /**
+   * 将模型名输入文本解析为数组（支持英文逗号 / 中文逗号 / 换行分隔）
+   * @param {string} text 输入文本
+   * @returns {string[]} 去重后的模型名数组
+   */
+  function parseChannelModelsText(text) {
+    var seen = {};
+    var models = [];
+    String(text || "").split(/[,，\n]/).forEach(function (part) {
+      var name = part.trim();
+      if (name && !seen[name]) {
+        seen[name] = true;
+        models.push(name);
+      }
+    });
+    return models;
+  }
+
   function readChannelFromCard(channelId) {
     var card = elements.channelList.querySelector('[data-channel-id="' + channelId + '"]');
     if (!card) return null;
+
+    // 模型名支持多个：解析为数组保存，同时把第一个写入 model 字段保持旧版兼容
+    var models = parseChannelModelsText((card.querySelector(".ch-model-input") || {}).value || "");
 
     return {
       id: channelId,
@@ -276,7 +308,8 @@
       mode: (card.querySelector(".ch-mode-select") || {}).value || "auto",
       baseUrl: (card.querySelector(".ch-baseurl-input") || {}).value || "",
       apiKey: (card.querySelector(".ch-apikey-input") || {}).value || "",
-      model: (card.querySelector(".ch-model-input") || {}).value || "",
+      model: models[0] || "",
+      models: models,
       enabled: (card.querySelector(".ch-enabled-toggle") || {}).checked || false
     };
   }

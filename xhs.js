@@ -181,7 +181,8 @@
   /** 从断点继续生成：跳过已完成页，只补生成剩余页面（含之前失败的页） */
   async function resumeGenerate() {
     if (state.generating || !state.paused) return;
-    var channel = __APP.getImageChannelByModel(elements.imageModel.value);
+    var resolved = __APP.resolveImageChannel(elements.imageModel.value);
+    var channel = resolved ? resolved.channel : null;
     if (!channel) {
       showStatus("当前生图模型不可用，请先到设置页启用并配置生图通道。", true);
       return;
@@ -663,25 +664,11 @@
 
   function initImageModelSelect() {
     var select = elements.imageModel;
-    var options = __APP.getModelOptions();
-    select.innerHTML = "";
-    if (options.length === 0) {
-      var option = document.createElement("option");
-      option.value = "";
-      option.textContent = "暂无可用生图通道，请先到设置页启用";
-      select.appendChild(option);
-      select.disabled = true;
-      return;
-    }
-    options.forEach(function (optionMeta) {
-      var option = document.createElement("option");
-      option.value = optionMeta.value;
-      option.textContent = optionMeta.label;
-      select.appendChild(option);
-    });
+    // 按通道分组的二级下拉（一级通道，二级模型）
+    var options = __APP.renderModelSelectOptions(select, "暂无可用生图通道，请先到设置页启用");
     // 恢复草稿里保存的选择；不存在时默认选第一项
     if (!select.value) {
-      select.value = options[0].value;
+      select.value = options.length > 0 ? options[0].value : "";
     }
   }
 
@@ -1403,14 +1390,14 @@
     var topic = elements.topic.value.trim();
     if (!topic) return { error: "请先输入笔记主题。" };
     var modelValue = elements.imageModel.value;
-    var channel = __APP.getImageChannelByModel(modelValue);
-    if (!channel) return { error: "当前生图模型不可用，请先到设置页启用并配置生图通道。" };
+    var resolved = __APP.resolveImageChannel(modelValue);
+    if (!resolved) return { error: "当前生图模型不可用，请先到设置页启用并配置生图通道。" };
     try {
       getLlmConfig();
     } catch (error) {
       return { error: error.message };
     }
-    return { channel: channel, topic: topic };
+    return { channel: resolved.channel, topic: topic };
   }
 
   /** 开始生成整篇笔记 */

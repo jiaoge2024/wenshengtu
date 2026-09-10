@@ -105,7 +105,53 @@
   };
 
   /**
-   * 获取当前完整的模型选项列表（从动态通道生成）
+   * 获取通道的模型名列表（新版 models 数组优先，兼容旧版单 model 字符串）
+   * @param {Object} ch 通道配置对象
+   * @returns {string[]} 模型名数组（已去除空项）
+   */
+  __APP.getChannelModels = function (ch) {
+    if (!ch) return [];
+    if (Array.isArray(ch.models) && ch.models.length > 0) {
+      return ch.models.map(function (m) { return String(m || "").trim(); }).filter(Boolean);
+    }
+    return ch.model ? [String(ch.model).trim()] : [];
+  };
+
+  /**
+   * 根据下拉选项 value（"模型名|通道ID"）解析出所选通道与具体模型
+   * 返回的通道为浅拷贝，其 model 已覆盖为用户所选的具体模型名，
+   * 后续请求链路无需感知多模型差异
+   * @param {string} modelValue 下拉选项 value
+   * @returns {Object|null} { channel, model } 或 null（无可用通道）
+   */
+  __APP.resolveImageChannel = function (modelValue) {
+    var channels = __APP.getImageChannels();
+    var channelId = "";
+    var modelName = "";
+    if (modelValue && modelValue.indexOf("|") !== -1) {
+      var parts = modelValue.split("|");
+      modelName = parts.slice(0, -1).join("|");
+      channelId = parts[parts.length - 1];
+    } else {
+      modelName = modelValue || "";
+    }
+    var ch = null;
+    if (channelId) {
+      ch = channels.find(function (c) { return c.enabled && c.id === channelId; }) || null;
+    }
+    if (!ch) {
+      // 兼容旧版按模型名查找
+      ch = channels.find(function (c) { return c.enabled && c.model === modelValue; }) || null;
+    }
+    if (!ch) return null;
+    var models = __APP.getChannelModels(ch);
+    // 所选模型必须属于该通道；防止下拉值与通道配置不同步
+    var finalModel = modelName && (models.indexOf(modelName) !== -1 || ch.model === modelName) ? modelName : (models[0] || ch.model);
+    return { channel: Object.assign({}, ch, { model: finalModel }), model: finalModel };
+  };
+
+  /**
+   * 获取当前完整的模型选项列表（从动态通道生成，支持一通道多模型）
    * @returns {Array} 模型选项数组
    */
   __APP.getModelOptions = function () {
@@ -113,30 +159,98 @@
     var channels = __APP.getImageChannels();
     var seenKeys = {};
 
-    // 添加已启用通道的模型
+    // 添加已启用通道的模型（每个通道可配置多个模型名）
     channels.forEach(function (ch) {
       if (!ch.enabled) {
         return;
       }
 
-      if (ch.model) {
+      var models = __APP.getChannelModels(ch);
+      models.forEach(function (modelName) {
         // 使用 "model|channelId" 作为 value，避免多个通道使用相同模型名时被去重
-        var optionValue = ch.model + "|" + ch.id;
+        var optionValue = modelName + "|" + ch.id;
         if (!seenKeys[optionValue]) {
           seenKeys[optionValue] = true;
           options.push({
             value: optionValue,
-            label: ch.name + " · " + ch.model,
+            label: ch.name + " · " + modelName,
             note: ch.type === "openai_images" ? "OpenAI Images 兼容接口，模式：" + (ch.mode || "auto") : ch.type === "agnes" ? "Agnes Image 生图" : "",
             channel: "image-channel",
             channelId: ch.id,
-            model: ch.model
+            channelName: ch.name,
+            model: modelName
           });
         }
-      }
+      });
     });
 
     return options;
+  };
+
+  /**
+   * 按通道分组获取模型选项（用于下拉框二级分组展示：一级通道、二级模型）
+   * @returns {Array} [{ id, name, options: [模型选项] }]，仅含含可用模型的启用通道
+   */
+  __APP.getModelOptionsGrouped = function () {
+    var groups = [];
+    var channels = __APP.getImageChannels();
+    channels.forEach(function (ch) {
+      if (!ch.enabled) return;
+      var models = __APP.getChannelModels(ch);
+      if (models.length === 0) return;
+      groups.push({
+        id: ch.id,
+        name: ch.name,
+        options: models.map(function (modelName) {
+          return {
+            value: modelName + "|" + ch.id,
+            label: modelName,
+            note: ch.type === "openai_images" ? "OpenAI Images 兼容接口，模式：" + (ch.mode || "auto") : ch.type === "agnes" ? "Agnes Image 生图" : "",
+            channel: "image-channel",
+            channelId: ch.id,
+            channelName: ch.name,
+            model: modelName
+          };
+        })
+      });
+    });
+    return groups;
+  };
+
+  /**
+   * 将模型选项按通道分组渲染到 select（二级选择：一级通道名分组，二级模型）
+   * @param {HTMLSelectElement} select 目标下拉框
+   * @param {string} emptyText 无可用模型时的占位文案
+   * @returns {Array} 平铺的选项数组（供调用方做回退校验）
+   */
+  __APP.renderModelSelectOptions = function (select, emptyText) {
+    if (!select) return [];
+    var flatOptions = [];
+    var groups = __APP.getModelOptionsGrouped();
+    select.innerHTML = "";
+    if (groups.length === 0) {
+      var option = document.createElement("option");
+      option.value = "";
+      option.textContent = emptyText || "暂无可用生图通道，请先到设置页启用";
+      select.appendChild(option);
+      select.disabled = true;
+      return [];
+    }
+    select.disabled = false;
+    groups.forEach(function (group) {
+      var optgroup = document.createElement("optgroup");
+      optgroup.label = group.name;
+      group.options.forEach(function (optionMeta) {
+        var option = document.createElement("option");
+        option.value = optionMeta.value;
+        // 选项文本带通道前缀：选中后收起状态也能看出所属通道（如「F · gpt-image-2.5-flare」）
+        option.textContent = optionMeta.channelName + " · " + optionMeta.label;
+        optgroup.appendChild(option);
+        flatOptions.push(optionMeta);
+      });
+      select.appendChild(optgroup);
+    });
+    return flatOptions;
   };
 
   __APP.getModelMeta = function (value) {
@@ -337,6 +451,55 @@ __APP.isCustomImageModel = function (value) {
   __APP.getLlmProviderById = function (providerId) {
     var providers = __APP.getLlmProviders();
     return providers.find(function (p) { return p.id === providerId; });
+  };
+
+  /**
+   * 构建视觉理解（多模态）消息数组：图片以 data URL 形式嵌入 OpenAI 兼容 content
+   * @param {string} instruction system 指令文本
+   * @param {string} userText 用户消息文本（重绘模式要求 + 补充要求）
+   * @param {string} dataUrl 图片 data URL（data:image/jpeg;base64,...）
+   * @returns {Array} OpenAI 风格 messages，可直接传给 callLlmApi
+   */
+  __APP.buildVisionMessages = function (instruction, userText, dataUrl) {
+    return [
+      { role: "system", content: String(instruction || "") },
+      {
+        role: "user",
+        content: [
+          { type: "text", text: String(userText || "") },
+          { type: "image_url", image_url: { url: String(dataUrl || "") } }
+        ]
+      }
+    ];
+  };
+
+  /**
+   * 根据图片实际宽高比，从比例预设中选出最接近的一项（图生图「跟随原图」用）
+   * @param {number} width 图片宽度（px，0 或非法时按 1 处理）
+   * @param {number} height 图片高度（px，0 或非法时按 1 处理）
+   * @param {Array} [ratios] 比例预设数组 [{value:"1:1",...}]，缺省用 __APP.ASPECT_RATIOS
+   * @returns {string} 最接近的预设 value（如 "3:4"）；无可用预设时返回 "1:1"
+   */
+  __APP.pickNearestAspectRatio = function (width, height, ratios) {
+    var presets = Array.isArray(ratios) && ratios.length > 0 ? ratios : (__APP.ASPECT_RATIOS || []);
+    if (presets.length === 0) return "1:1";
+    var w = Number(width) > 0 ? Number(width) : 1;
+    var h = Number(height) > 0 ? Number(height) : 1;
+    var target = w / h;
+    var best = presets[0];
+    var bestDiff = Infinity;
+    presets.forEach(function (item) {
+      var parts = String(item.value || "").split(":");
+      var rw = Number(parts[0]);
+      var rh = Number(parts[1]);
+      if (!(rw > 0) || !(rh > 0)) return;
+      var diff = Math.abs(rw / rh - target);
+      if (diff < bestDiff) {
+        bestDiff = diff;
+        best = item;
+      }
+    });
+    return best.value || "1:1";
   };
 
   /**
@@ -943,7 +1106,9 @@ __APP.isCustomImageModel = function (value) {
       url: url,
       method: options.method || "POST",
       headers: options.headers || {},
-      body: options.body != null ? String(options.body) : null
+      body: options.body != null ? String(options.body) : null,
+      // multipart：图片编辑接口（/v1/images/edits）需要 multipart/form-data 上传
+      multipart: options.multipart || null
     };
 
     var proxyRes = await fetch("/api/proxy", {

@@ -1,0 +1,597 @@
+/* ==================== 图生图工作台 v2.0 ==================== */
+
+/* 页面整体骨架 */
+.i2i-shell {
+  width: min(1180px, calc(100% - 28px));
+  margin: 0 auto;
+  padding: 24px 0 48px;
+  display: grid;
+  gap: 16px;
+}
+
+/* 顶部标题区 */
+.i2i-hero {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 22px 24px;
+  flex-wrap: wrap;
+}
+
+.i2i-hero h1 {
+  font-size: 1.7rem;
+  margin: 4px 0 8px;
+  max-width: none;
+}
+
+.i2i-hero .hero-text {
+  margin: 0;
+  max-width: 640px;
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+.i2i-hero .hero-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.i2i-section-title {
+  margin: 0 0 12px;
+  font-size: 1.02rem;
+}
+
+/* ==================== 功能模式面板 ==================== */
+
+.i2i-mode-panel,
+.i2i-upload-panel,
+.i2i-req-panel,
+.i2i-config,
+.i2i-composer {
+  padding: 20px 24px;
+}
+
+.i2i-mode-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.i2i-mode-card {
+  text-align: left;
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px solid var(--button-line);
+  background: var(--button-paper);
+  cursor: pointer;
+  transition: border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+  font: inherit;
+  color: inherit;
+}
+
+.i2i-mode-card:hover {
+  border-color: var(--button-line-strong);
+  transform: translateY(-1px);
+}
+
+.i2i-mode-card.is-active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent), 0 10px 22px rgba(204, 109, 73, 0.16);
+}
+
+.i2i-mode-card-name {
+  display: block;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.i2i-mode-card-desc {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+/* ==================== 上传区 ==================== */
+
+.i2i-dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 34px 20px;
+  border: 2px dashed var(--button-line-strong);
+  border-radius: 16px;
+  background: rgba(255, 253, 248, 0.6);
+  cursor: pointer;
+  text-align: center;
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
+}
+
+.i2i-dropzone:hover,
+.i2i-dropzone:focus-visible {
+  border-color: var(--accent);
+  background: rgba(255, 253, 248, 0.85);
+  outline: none;
+}
+
+.i2i-dropzone.is-dragover {
+  border-color: var(--accent);
+  background: rgba(204, 109, 73, 0.08);
+  transform: scale(1.01);
+}
+
+.i2i-dropzone-icon {
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.i2i-dropzone-text {
+  margin: 0;
+  color: var(--ink);
+  font-size: 0.95rem;
+}
+
+.i2i-dropzone-text kbd {
+  font: inherit;
+  font-size: 0.8rem;
+  border: 1px solid var(--button-line-strong);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  padding: 1px 6px;
+  background: #fff;
+}
+
+.i2i-dropzone-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  max-width: 560px;
+  line-height: 1.6;
+}
+
+/* ==================== 多图预览网格 ==================== */
+
+.i2i-multi-preview {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.i2i-multi-card {
+  position: relative;
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(255, 253, 248, 0.7);
+}
+
+.i2i-multi-visual {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  border-radius: 8px;
+  overflow: hidden;
+  background: linear-gradient(160deg, #faf4ea, #f0e5d4);
+  border: 1px solid var(--line);
+}
+
+.i2i-multi-visual img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.i2i-multi-label {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  letter-spacing: 0.04em;
+}
+
+.i2i-multi-meta {
+  font-size: 0.72rem;
+  color: var(--muted);
+  text-align: center;
+}
+
+.i2i-multi-remove {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 0.7rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s ease;
+}
+
+.i2i-multi-remove:hover {
+  background: var(--danger);
+}
+
+/* ==================== 要求面板 ==================== */
+
+.i2i-req-panel .i2i-field {
+  display: grid;
+  gap: 6px;
+}
+
+.i2i-req-panel textarea {
+  resize: vertical;
+}
+
+/* ==================== 提取结果面板 ==================== */
+
+.i2i-extract-result {
+  padding: 20px 24px;
+  display: grid;
+  gap: 14px;
+}
+
+/* 提取结果卡：头部右侧按钮组（复制全部 + 展开/收起） */
+.i2i-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 提取结果卡：折叠体自身用 grid 间距，去掉默认外边距避免双重空隙 */
+.i2i-extract-result .i2i-panel-body {
+  margin-top: 0;
+  display: grid;
+  gap: 14px;
+}
+
+/* 关键：折叠体设置了 display:grid 后，会覆盖浏览器默认的 [hidden]{display:none}，
+   导致点击收起时 hidden=true 也不隐藏。这里显式兜底，保证 hidden 始终生效。 */
+.i2i-panel-body[hidden],
+.i2i-extract-result .i2i-panel-body[hidden] {
+  display: none !important;
+}
+
+/* 结果卡头部的耗时角标：靠右对齐，弱化视觉 */
+.i2i-result-elapsed {
+  margin-left: auto;
+  flex: none;
+  font-size: 0.72rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+/* 结果卡：提示词折叠区（可编辑后重新生成） */
+.i2i-result-prompt-block {
+  display: grid;
+  gap: 8px;
+}
+
+.i2i-prompt-toggle {
+  justify-self: start;
+  padding: 4px 10px;
+  border: none;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--muted);
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.i2i-prompt-toggle:hover {
+  background: rgba(0, 0, 0, 0.09);
+}
+
+.i2i-result-prompt-block .js-prompt {
+  width: 100%;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.i2i-extract-summary {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.6;
+  padding: 10px 14px;
+  border-left: 3px solid var(--accent);
+  background: rgba(255, 253, 248, 0.7);
+  border-radius: 0 8px 8px 0;
+}
+
+.i2i-prompt-block {
+  display: grid;
+  gap: 8px;
+}
+
+.i2i-prompt-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.i2i-prompt-head .field-label {
+  margin: 0;
+}
+
+.i2i-prompt-input {
+  width: 100%;
+  resize: vertical;
+  line-height: 1.6;
+  font-size: 0.92rem;
+}
+
+/* ==================== 可折叠面板 ==================== */
+
+.i2i-panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.i2i-panel-head .i2i-section-title {
+  margin: 0;
+}
+
+.i2i-panel-body {
+  margin-top: 16px;
+}
+
+.i2i-collapse-toggle {
+  font: inherit;
+  font-size: 0.82rem;
+  color: var(--muted);
+  background: var(--button-paper);
+  border: 1px solid var(--button-line);
+  border-radius: 999px;
+  padding: 5px 14px;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.i2i-collapse-toggle:hover {
+  color: var(--ink);
+  border-color: var(--button-line-strong);
+}
+
+/* ==================== 高级设置 ==================== */
+
+.i2i-config .i2i-field {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.i2i-config .i2i-field .field-note {
+  font-size: 0.76rem;
+}
+
+.i2i-model-block {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+/* 生图参数一行三列：模型 / 质量 / 尺寸 */
+.i2i-model-inline {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.i2i-model-field {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+/* 模型名通常较长占大份额，质量与尺寸选项较短各占小份额 */
+.i2i-model-field.is-model { flex: 2 1 220px; }
+.i2i-model-field.is-quality { flex: 1 1 110px; }
+.i2i-model-field.is-aspect { flex: 1 1 130px; }
+
+.i2i-mini-label {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.i2i-model-field .select-input {
+  width: 100%;
+}
+
+.i2i-llm-info {
+  margin: 0;
+  font-weight: 700;
+  color: var(--accent-2);
+  overflow-wrap: anywhere;
+}
+
+.i2i-llm-info.is-empty {
+  color: var(--danger);
+}
+
+.i2i-model-block .nav-link {
+  justify-self: start;
+  font-size: 0.85rem;
+}
+
+/* ==================== 操作区 ==================== */
+
+.i2i-composer {
+  padding: 20px 24px;
+}
+
+.i2i-composer-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.i2i-composer-actions .primary-button,
+.i2i-composer-actions .ghost-button {
+  min-width: 132px;
+  justify-content: center;
+  padding: 8px 14px;
+}
+
+.i2i-status {
+  margin: 12px 0 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.6;
+}
+
+.i2i-status.is-error {
+  color: var(--danger);
+}
+
+/* ==================== 结果区 ==================== */
+
+.i2i-results {
+  display: grid;
+  gap: 16px;
+}
+
+.i2i-results-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 16px;
+}
+
+.i2i-result-card {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  align-content: start;
+}
+
+.i2i-result-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.i2i-result-tag {
+  flex: none;
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+}
+
+.i2i-result-tag.is-source {
+  background: var(--muted);
+}
+
+.i2i-result-title {
+  margin: 0;
+  font-size: 0.98rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.i2i-result-visual {
+  position: relative;
+  aspect-ratio: 3 / 4;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background:
+    radial-gradient(circle at 30% 20%, rgba(204, 109, 73, 0.1), transparent 50%),
+    linear-gradient(160deg, #faf4ea, #f0e5d4);
+}
+
+.i2i-result-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.i2i-result-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 0.85rem;
+  padding: 12px;
+  text-align: center;
+}
+
+.i2i-result-placeholder.is-error {
+  color: var(--danger);
+}
+
+.i2i-result-spinner {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 3px solid rgba(204, 109, 73, 0.25);
+  border-top-color: var(--accent);
+  animation: i2i-spin 0.9s linear infinite;
+}
+
+@keyframes i2i-spin {
+  to { transform: rotate(360deg); }
+}
+
+.i2i-result-actions {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.i2i-result-actions .ghost-button {
+  font-size: 0.8rem;
+  padding: 6px 10px;
+}
+
+/* ==================== 小屏适配 ==================== */
+
+@media (max-width: 640px) {
+  .i2i-hero {
+    flex-direction: column;
+  }
+
+  .i2i-mode-cards {
+    grid-template-columns: 1fr;
+  }
+
+  .i2i-multi-preview {
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  }
+
+  .i2i-results-grid {
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  }
+}

@@ -402,11 +402,10 @@
   }
 
   function renderSelectOptions() {
-    var modelOptions = __APP.getModelOptions();
+    // 生图模型：按通道分组的二级下拉（一级通道，二级模型）
+    var modelOptions = __APP.renderModelSelectOptions(elements.modelName, "-- 没有可用模型 --");
     if (modelOptions.length === 0) {
-      elements.modelName.innerHTML = '<option value="">-- 没有可用模型 --</option>';
-    } else {
-      elements.modelName.innerHTML = modelOptions.map(function (item) { return '<option value="' + item.value + '">' + item.label + '</option>'; }).join("");
+      // renderModelSelectOptions 已写入空状态占位
     }
     elements.aspectRatio.innerHTML = __APP.ASPECT_RATIOS.map(function (item) { return '<option value="' + item.value + '">' + item.label + '</option>'; }).join("");
     elements.imageQuality.innerHTML = __APP.IMAGE_QUALITIES.map(function (item) { return '<option value="' + item.value + '">' + item.label + '</option>'; }).join("");
@@ -998,9 +997,9 @@ elements.baseUrl.readOnly = true;
 
 function getRequestChannelLabel() {
 var model = elements.modelName.value || __APP.DEFAULT_MODEL;
-var ch = __APP.getImageChannelByModel(model);
-if (ch) {
-return ch.name + " · " + ch.model;
+var resolved = __APP.resolveImageChannel(model);
+if (resolved) {
+return resolved.channel.name + " · " + resolved.model;
 }
 return "生图通道";
 }
@@ -1663,10 +1662,10 @@ return "生图通道";
     var model = elements.modelName.value || __APP.DEFAULT_MODEL;
     var finalPrompt = __APP.buildPrompt(rawPrompt, styleTemplateId);
 
-    // 查找模型所属的动态生图通道
-    var ch = __APP.getImageChannelByModel(model);
-    if (ch) {
-      return generateImageChannel(ch, rawPrompt, aspectRatio, imageQuality, styleTemplateId, signal);
+    // 解析所选通道与具体模型（支持一个通道多个模型）
+    var resolved = __APP.resolveImageChannel(model);
+    if (resolved) {
+      return generateImageChannel(resolved.channel, rawPrompt, aspectRatio, imageQuality, styleTemplateId, signal);
     }
 
     // 当前模型没有可用通道
