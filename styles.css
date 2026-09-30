@@ -7,6 +7,10 @@
   --accent: #cc6d49;
   --accent-2: #4f7f78;
   --danger: #b44d3d;
+  /* 语义状态色：成功 / 失败 / 进行中，全站状态反馈统一使用 */
+  --status-success: #3e7d4e;
+  --status-error: #b44d3d;
+  --status-running: #b07f2e;
   --shadow: 0 24px 48px rgba(53, 33, 12, 0.12);
   --button-paper: rgba(255, 253, 248, 0.82);
   --button-paper-hover: rgba(255, 249, 239, 0.96);
@@ -788,6 +792,48 @@ kbd {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* 通道卡片头部的模型摘要：一眼看出该通道配了哪些模型 */
+.ch-card-models {
+  flex: 2;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted, #776655);
+  font-size: 12px;
+}
+.ch-card-models.is-empty {
+  color: rgba(119, 102, 85, 0.55);
+  font-style: italic;
+}
+
+/* 通道健康状态灯：绿=验证通过 红=验证失败 琥珀=验证中 灰=未验证 */
+.ch-verify-dot {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: rgba(55, 37, 16, 0.18);
+  cursor: help;
+}
+.ch-verify-dot.is-ok {
+  background: var(--status-success);
+  box-shadow: 0 0 0 3px rgba(62, 125, 78, 0.15);
+}
+.ch-verify-dot.is-fail {
+  background: var(--status-error);
+  box-shadow: 0 0 0 3px rgba(180, 77, 61, 0.15);
+}
+.ch-verify-dot.is-testing {
+  background: var(--status-running);
+  animation: ch-dot-pulse 0.9s ease infinite;
+}
+@keyframes ch-dot-pulse {
+  50% {
+    opacity: 0.35;
+  }
 }
 
 .ch-badge {
@@ -2036,40 +2082,11 @@ body.lightbox-open {
   z-index: 1;
 }
 
-.mode-button-pulse {
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  pointer-events: none;
-  opacity: 0;
-}
-
-.mode-button[data-task-mode="batch"]:not(.is-active) .mode-button-pulse {
-  animation: mode-button-pulse 2.2s ease-out infinite;
-  background: radial-gradient(
-    ellipse at center,
-    rgba(196, 152, 84, 0.35) 0%,
-    rgba(196, 152, 84, 0) 70%
-  );
-}
-
-@keyframes mode-button-pulse {
-  0%   { opacity: 0; transform: scale(1); }
-  35%  { opacity: 1; transform: scale(1); }
-  70%  { opacity: 0; transform: scale(1.4); }
-  100% { opacity: 0; transform: scale(1.4); }
-}
-
 @keyframes button-spin {
   to { transform: rotate(360deg); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .mode-button[data-task-mode="batch"]:not(.is-active) .mode-button-pulse {
-    animation: none;
-    opacity: 0.4;
-  }
-
   .primary-button.is-loading::before,
   .ghost-button.is-loading::before {
     animation: none;
@@ -2302,4 +2319,195 @@ body.lightbox-open {
   width: 100%;
   margin-top: 12px;
   justify-content: center;
+}
+
+/* ===== 生图失败诊断：分类标签与下一步建议 ===== */
+.generation-diagnosis {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-left: 3px solid var(--status-error);
+  border-radius: 6px;
+  background: rgba(180, 77, 61, 0.08);
+  color: var(--ink-soft);
+  font-size: 0.9em;
+  line-height: 1.5;
+}
+.generation-diagnosis strong {
+  color: var(--status-error);
+}
+.generation-diagnosis.is-channel {
+  border-left-color: var(--status-running);
+  background: rgba(176, 127, 46, 0.1);
+}
+.generation-diagnosis.is-channel strong {
+  color: var(--status-running);
+}
+.generation-diagnosis.is-service {
+  border-left-color: #6c78a8;
+  background: rgba(108, 120, 168, 0.1);
+}
+.generation-diagnosis.is-service strong {
+  color: #59658f;
+}
+
+/* ===== 全局语义状态系统：成功绿 / 失败红 / 进行中琥珀 ===== */
+/* 用法：状态行容器加 .status-line，按状态追加 is-success / is-error / is-running */
+.status-line.is-success {
+  color: var(--status-success);
+}
+.status-line.is-error {
+  color: var(--status-error);
+  font-weight: 600;
+}
+.status-line.is-running {
+  color: var(--status-running);
+}
+/* 进行中状态前的小旋转图标 */
+.status-spinner {
+  display: inline-block;
+  width: 0.85em;
+  height: 0.85em;
+  margin-right: 0.4em;
+  vertical-align: -0.08em;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: status-spin 0.8s linear infinite;
+}
+@keyframes status-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+/* 状态行内嵌的引导操作按钮（如「去配置 →」） */
+.status-action-link {
+  display: inline-block;
+  margin-left: 0.6em;
+  padding: 0.1em 0.7em;
+  border: 1px solid var(--button-line-strong);
+  border-radius: 999px;
+  background: var(--button-paper);
+  color: var(--ink);
+  font-size: 0.88em;
+  text-decoration: none;
+  transition: background 0.15s ease;
+}
+.status-action-link:hover {
+  background: var(--button-paper-hover);
+}
+
+/* ===== 设置页顶部轻提示（自动保存反馈） ===== */
+#settings-toast {
+  position: fixed;
+  top: 18px;
+  left: 50%;
+  transform: translate(-50%, -12px);
+  z-index: 999;
+  padding: 8px 18px;
+  border-radius: 999px;
+  background: rgba(63, 53, 44, 0.92);
+  color: #fff8ef;
+  font-size: 0.85rem;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+#settings-toast.is-visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+/* ===== 生成占位（模拟 Blur-up）：静态模糊底 + 完成时模糊→清晰淡入 ===== */
+/* 占位渐变：静态柔和多色渐变（模拟失焦图片质感，无动画），
+   .gen-blur-placeholder 为独立占位卡（主页用），.gen-blur-layer 为铺满父容器的占位层（xhs 卡片用） */
+.gen-blur-placeholder,
+.gen-blur-layer {
+  /* 与页面背景保持同色系，只保留极轻的明暗变化，避免等待态抢过图片和内容的注意力 */
+  background:
+    radial-gradient(120% 90% at 20% 15%, rgba(255, 250, 242, 0.36), transparent 60%),
+    radial-gradient(110% 100% at 80% 30%, rgba(226, 211, 190, 0.18), transparent 65%),
+    linear-gradient(160deg, var(--bg) 0%, #f1e8da 55%, var(--bg) 100%);
+}
+
+/* ==================== 全局轻提示（生图成功等温馨小提示） ==================== */
+#app-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 34px;
+  transform: translate(-50%, 12px);
+  z-index: 9999;
+  max-width: min(78vw, 460px);
+  padding: 9px 18px;
+  border-radius: 999px;
+  border: 1px solid rgba(160, 138, 108, 0.28);
+  background: rgba(250, 245, 236, 0.96);
+  color: #6b5a44;
+  font-size: 13px;
+  line-height: 1.5;
+  text-align: center;
+  box-shadow: 0 6px 22px rgba(94, 76, 55, 0.14);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.35s ease, transform 0.35s ease, visibility 0.35s;
+}
+#app-toast.is-visible {
+  opacity: 1;
+  visibility: visible;
+  transform: translate(-50%, 0);
+}
+/* 占位卡本体：由内联 aspect-ratio 撑高 */
+.gen-blur-placeholder {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  border-radius: 10px;
+}
+/* 占位层变体：绝对定位铺满父容器 */
+.gen-blur-layer {
+  position: absolute;
+  inset: 0;
+}
+/* 主页单图是 flex 布局，.image-wrapper 宽度由内容决定，占位卡没有固有宽度会塌陷为 0，
+   因此给定确定宽度（与完成后真图的 max-width 160px 对齐） */
+.image-wrapper > .gen-blur-placeholder {
+  width: 160px;
+  max-width: 100%;
+}
+/* 多图网格布局下轨道宽度确定，占位卡直接铺满单元格 */
+.image-gallery--grid .image-wrapper > .gen-blur-placeholder {
+  width: 100%;
+}
+/* 失败态：暗红色调 */
+.gen-blur-placeholder.is-error,
+.gen-blur-layer.is-error {
+  background:
+    radial-gradient(120% 90% at 25% 20%, rgba(150, 82, 82, 0.45), transparent 60%),
+    linear-gradient(160deg, #33232a 0%, #2c2028 100%);
+}
+/* 占位卡中央的状态文字 + spinner */
+.gen-status-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45em;
+  color: rgba(70, 57, 44, 0.7);
+  font-size: 0.9rem;
+  text-shadow: 0 1px 3px rgba(255, 250, 242, 0.55);
+}
+/* 真图首次出现时的「模糊→清晰」淡入（唯一的动画） */
+.gen-blur-reveal-img {
+  animation: genBlurReveal 0.6s ease-out both;
+}
+@keyframes genBlurReveal {
+  from {
+    filter: blur(14px);
+    opacity: 0;
+    transform: scale(1.04);
+  }
 }

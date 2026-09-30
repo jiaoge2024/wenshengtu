@@ -28,29 +28,30 @@ body {
   justify-content: space-between;
   gap: 20px;
   align-items: end;
-  padding: 22px;
+  padding: 14px 22px;
 }
 
 .eyebrow {
-  margin: 0 0 8px;
+  margin: 0 0 4px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   font-size: 0.74rem;
   color: var(--muted);
 }
 
+/* 标题比全站默认 h1 缩小两号，与图库页头图保持一致的紧凑比例 */
 h1 {
   margin: 0;
   font-family: "Palatino Linotype", "Book Antiqua", serif;
   font-weight: 700;
-  font-size: clamp(2.4rem, 5vw, 4.2rem);
+  font-size: clamp(1.5rem, 2.4vw, 2.3rem);
   line-height: 0.96;
 }
 
 .hero-text {
-  margin: 12px 0 0;
+  margin: 8px 0 0;
   color: var(--muted);
-  line-height: 1.7;
+  line-height: 1.55;
   max-width: 680px;
 }
 

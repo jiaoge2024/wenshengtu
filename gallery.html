@@ -6,6 +6,7 @@
     <title>图生图长 · 本地图片库</title>
     <link rel="stylesheet" href="./styles.css" />
     <link rel="stylesheet" href="./gallery.css" />
+    <link rel="stylesheet" href="./app-rail.css" />
   </head>
   <body>
     <div class="gallery-shell">
@@ -17,10 +18,6 @@
         </div>
         <aside class="hero-meta">
           <div class="hero-actions">
-            <a class="nav-link" href="./index.html">返回创作台</a>
-            <a class="nav-link" href="./prompts.html">提示词库</a>
-            <a class="nav-link" href="./xhs.html">小红书笔记</a>
-            <a class="nav-link" href="./img2img.html">图生图工作台</a>
             <button class="ghost-button" id="refresh-gallery" type="button">刷新画廊</button>
             <button class="ghost-button" id="open-local-folder" type="button">打开本地图库</button>
           </div>
@@ -47,9 +44,18 @@
             <p class="eyebrow">Filter</p>
             <h2>按比例筛选</h2>
           </header>
-          <div class="sym-panel-body">
-            <select id="gallery-filter" class="select-input sym-control"></select>
-            <span class="selection-summary sym-summary" id="selection-summary">未选中记录</span>
+          <div class="sym-panel-body gallery-toolbar-body">
+            <div class="gallery-filter-row">
+              <select id="gallery-filter" class="select-input gallery-filter-select"></select>
+              <input
+                id="gallery-search"
+                class="text-input gallery-search-input"
+                type="search"
+                placeholder="搜索标签、提示词、模型…"
+                aria-label="搜索图片标签与提示词"
+              />
+            </div>
+            <span class="tag-status" id="tag-status" hidden></span>
             <div class="sym-actions">
               <button class="ghost-button" id="select-visible-records" type="button">选中当前筛选</button>
               <button class="ghost-button" id="clear-selection" type="button">清空选择</button>
@@ -90,6 +96,9 @@
       </div>
     </div>
 
+    <!-- 选中数量浮动提示：不再占工具栏版面，选中变化时短暂弹出 -->
+    <div class="gallery-toast" id="selection-summary" role="status" aria-live="polite" hidden></div>
+
     <template id="gallery-card-template">
       <article class="gallery-card panel">
         <img class="gallery-image" />
@@ -106,6 +115,7 @@
             <p class="gallery-title"></p>
             <button class="prompt-toggle" type="button" hidden>展开</button>
           </div>
+          <div class="gallery-tags" hidden></div>
           <p class="gallery-time"></p>
           <div class="gallery-actions">
             <button class="ghost-button copy-prompt-button" type="button">复制提示词</button>
@@ -117,6 +127,9 @@
       </article>
     </template>
 
+    <script src="./app-config.js"></script>
+    <script src="./app-utils.js"></script>
     <script src="./gallery.js"></script>
+    <script src="./app-nav.js"></script>
   </body>
 </html>

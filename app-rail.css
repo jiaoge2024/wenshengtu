@@ -1,0 +1,294 @@
+/* ============================================================
+   可呼吸全局侧边导航栏（Breathing Rail）
+   默认为 58px 图标栏，悬停/键盘聚焦时展开；固定后页面同步让位。
+   ============================================================ */
+
+:root {
+  --app-rail-collapsed: 58px;
+  --app-rail-expanded: 218px;
+  --app-rail-ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+body.has-app-rail {
+  padding-left: calc(var(--app-rail-collapsed) + 4px);
+  transition: padding-left 320ms var(--app-rail-ease);
+}
+
+body.has-app-rail.app-rail-pinned {
+  padding-left: calc(var(--app-rail-expanded) + 8px);
+}
+
+.app-rail {
+  position: fixed;
+  inset: 0 auto 0 0;
+  z-index: 960;
+  box-sizing: border-box;
+  width: var(--app-rail-collapsed);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 8px 14px;
+  overflow: hidden;
+  color: var(--ink, #3f352c);
+  background:
+    radial-gradient(circle at 18px 36px, rgba(204, 109, 73, 0.1), transparent 84px),
+    rgba(255, 250, 242, 0.96);
+  border-right: 1px solid var(--line, rgba(55, 37, 16, 0.1));
+  box-shadow: 3px 0 20px rgba(53, 33, 12, 0.06);
+  backdrop-filter: blur(18px) saturate(1.12);
+  transition: width 320ms var(--app-rail-ease), box-shadow 320ms ease;
+  isolation: isolate;
+}
+
+.app-rail:hover,
+.app-rail:focus-within,
+.app-rail.is-pinned {
+  width: var(--app-rail-expanded);
+  box-shadow: 10px 0 34px rgba(53, 33, 12, 0.13);
+}
+
+/* 品牌区 */
+.app-rail-brand {
+  width: 100%;
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: inherit;
+  text-decoration: none;
+  border-radius: 13px;
+  white-space: nowrap;
+}
+
+.app-rail-logo {
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  background: linear-gradient(145deg, var(--button-primary, #3f352c), #241e19);
+  color: #fff8ef;
+  box-shadow: 0 8px 18px rgba(63, 53, 44, 0.18);
+  font-family: "Palatino Linotype", "Book Antiqua", serif;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.app-rail-brand-copy,
+.app-rail-copy,
+.app-rail-pin > .app-rail-label {
+  min-width: 0;
+  opacity: 0;
+  transform: translateX(-7px);
+  pointer-events: none;
+  transition: opacity 160ms ease 30ms, transform 260ms var(--app-rail-ease) 20ms;
+}
+
+.app-rail:hover .app-rail-brand-copy,
+.app-rail:focus-within .app-rail-brand-copy,
+.app-rail.is-pinned .app-rail-brand-copy,
+.app-rail:hover .app-rail-copy,
+.app-rail:focus-within .app-rail-copy,
+.app-rail.is-pinned .app-rail-copy,
+.app-rail:hover .app-rail-pin > .app-rail-label,
+.app-rail:focus-within .app-rail-pin > .app-rail-label,
+.app-rail.is-pinned .app-rail-pin > .app-rail-label {
+  opacity: 1;
+  transform: translateX(0);
+  pointer-events: auto;
+}
+
+.app-rail-brand-copy {
+  display: grid;
+  gap: 1px;
+}
+
+.app-rail-brand-copy strong {
+  font-size: 0.92rem;
+  letter-spacing: 0.04em;
+}
+
+.app-rail-brand-copy small {
+  color: var(--muted, #776655);
+  font-size: 0.69rem;
+  letter-spacing: 0.1em;
+}
+
+/* 功能入口 */
+.app-rail-items {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 6px;
+  overflow: hidden auto;
+  scrollbar-width: none;
+}
+
+.app-rail-items::-webkit-scrollbar {
+  display: none;
+}
+
+.app-rail-item,
+.app-rail-pin {
+  position: relative;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 46px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid transparent;
+  border-radius: 13px;
+  background: transparent;
+  color: var(--muted, #776655);
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  transition: background-color 170ms ease, border-color 170ms ease, color 170ms ease, transform 170ms ease;
+}
+
+.app-rail-icon {
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.app-rail-icon svg {
+  width: 21px;
+  height: 21px;
+  display: block;
+  transition: transform 220ms var(--app-rail-ease);
+}
+
+.app-rail-copy {
+  display: grid;
+  gap: 1px;
+  line-height: 1.2;
+}
+
+.app-rail-label {
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.app-rail-copy small {
+  color: var(--muted, #776655);
+  font-size: 0.68rem;
+  font-weight: 400;
+}
+
+.app-rail-item:hover,
+.app-rail-pin:hover {
+  color: var(--accent, #cc6d49);
+  background: rgba(204, 109, 73, 0.09);
+  border-color: rgba(204, 109, 73, 0.08);
+}
+
+.app-rail-item:hover .app-rail-icon svg,
+.app-rail-pin:hover .app-rail-icon svg {
+  transform: scale(1.08);
+}
+
+.app-rail-item.is-active {
+  color: var(--accent, #cc6d49);
+  background: linear-gradient(90deg, rgba(204, 109, 73, 0.17), rgba(204, 109, 73, 0.07));
+  border-color: rgba(204, 109, 73, 0.12);
+}
+
+.app-rail-item.is-active::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 3px;
+  height: 22px;
+  border-radius: 0 3px 3px 0;
+  background: var(--accent, #cc6d49);
+  transform: translateY(-50%);
+  box-shadow: 0 0 12px rgba(204, 109, 73, 0.38);
+}
+
+.app-rail-item:focus-visible,
+.app-rail-pin:focus-visible,
+.app-rail-brand:focus-visible {
+  outline: 3px solid rgba(204, 109, 73, 0.22);
+  outline-offset: 1px;
+}
+
+/* 底部固定按钮 */
+.app-rail-footer {
+  padding-top: 8px;
+  border-top: 1px solid var(--line, rgba(55, 37, 16, 0.1));
+}
+
+.app-rail-pin.is-active {
+  color: var(--accent-2, #4f7f78);
+  background: rgba(79, 127, 120, 0.1);
+  border-color: rgba(79, 127, 120, 0.14);
+}
+
+.app-rail-pin.is-active .app-rail-icon svg {
+  transform: rotate(28deg);
+}
+
+/* 窄屏不自动展开，避免侧栏遮住主要内容；仍保留紧凑图标导航。 */
+@media (max-width: 720px) {
+  :root {
+    --app-rail-collapsed: 48px;
+  }
+
+  body.has-app-rail,
+  body.has-app-rail.app-rail-pinned {
+    padding-left: 52px;
+  }
+
+  .app-rail,
+  .app-rail:hover,
+  .app-rail:focus-within,
+  .app-rail.is-pinned {
+    width: var(--app-rail-collapsed);
+    padding-inline: 4px;
+    box-shadow: 3px 0 18px rgba(53, 33, 12, 0.08);
+  }
+
+  .app-rail-logo,
+  .app-rail-icon {
+    width: 40px;
+    flex-basis: 40px;
+  }
+
+  .app-rail-brand-copy,
+  .app-rail-copy,
+  .app-rail-pin > .app-rail-label,
+  .app-rail:hover .app-rail-brand-copy,
+  .app-rail:hover .app-rail-copy,
+  .app-rail:hover .app-rail-pin > .app-rail-label {
+    display: none;
+  }
+
+  .app-rail-footer {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body.has-app-rail,
+  .app-rail,
+  .app-rail-brand-copy,
+  .app-rail-copy,
+  .app-rail-pin > .app-rail-label,
+  .app-rail-icon svg {
+    transition: none;
+  }
+}

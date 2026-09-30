@@ -13,6 +13,8 @@
     imageCount: document.getElementById("image-count"),
     latestTime: document.getElementById("latest-time"),
     filter: document.getElementById("gallery-filter"),
+    search: document.getElementById("gallery-search"),
+    tagStatus: document.getElementById("tag-status"),
     refresh: document.getElementById("refresh-gallery"),
     openFolder: document.getElementById("open-local-folder"),
     template: document.getElementById("gallery-card-template"),
@@ -35,8 +37,77 @@
   const state = {
     records: [],
     selectedRecordIds: new Set(),
-    uploadedFiles: []
+    uploadedFiles: [],
+    searchQuery: "",
+    taggingBusy: false
   };
+
+  // 每打完多少张标签就刷新一次卡片，避免大批量打标签时长时间不更新界面
+  const TAG_RENDER_INTERVAL = 4;
+
+  /**
+   * 更新工具栏上的标签状态文字（如「AI 打标签中 2/10…」）
+   * @param {string} text 状态文字，空串表示隐藏
+   */
+  function setTagStatus(text) {
+    if (!elements.tagStatus) {
+      return;
+    }
+    elements.tagStatus.textContent = text;
+    elements.tagStatus.hidden = !text;
+  }
+
+  /**
+   * 自动打标签：遍历还没有 tags 的记录，逐张调用「AI 助手模型」（需支持视觉）
+   * 生成中文标签并持久化（服务端接口优先，失败回退 localStorage）
+   */
+  async function autoTagRecords() {
+    if (state.taggingBusy) {
+      return;
+    }
+    if (!window.__APP || typeof window.__APP.requestImageTags !== "function") {
+      return;
+    }
+    const untagged = state.records.filter(
+      (record) => !Array.isArray(record.tags) && getRecordId(record) && Array.isArray(record.images) && record.images[0]
+    );
+    if (untagged.length === 0) {
+      return;
+    }
+
+    state.taggingBusy = true;
+    let completed = 0;
+    try {
+      for (const record of untagged) {
+        setTagStatus(`AI 打标签中 ${completed + 1}/${untagged.length}…`);
+        try {
+          const tags = await window.__APP.requestImageTags(record.images[0]);
+          record.tags = tags;
+          await window.__APP.updateGalleryRecordTags(getRecordId(record), tags);
+        } catch (error) {
+          console.warn("[gallery] 自动打标签失败", getRecordId(record), error);
+          record.tags = [];
+          // 助手模型未配置时直接中止整批，避免每张图都白等一次接口
+          if (/未配置|API Key|模型名/.test(error && error.message)) {
+            setTagStatus("自动打标签未启用：请先到设置页配置「AI 助手模型」");
+            window.setTimeout(() => setTagStatus(""), 4000);
+            return;
+          }
+        }
+        completed += 1;
+        if (completed % TAG_RENDER_INTERVAL === 0) {
+          await renderCards();
+        }
+      }
+      if (completed > 0) {
+        setTagStatus(`已为 ${completed} 张图片打好标签 ✓`);
+        window.setTimeout(() => setTagStatus(""), 2500);
+      }
+    } finally {
+      state.taggingBusy = false;
+      await renderCards();
+    }
+  }
 
   let resizeTimer = null;
 
@@ -224,11 +295,37 @@
     return [ALL_RATIOS_LABEL].concat(values);
   }
 
+  /**
+   * 判断记录是否命中搜索关键词：匹配标签、提示词、风格、模式、模型等字段
+   * @param {Object} record 图库记录
+   * @param {string} query 已转小写的关键词（空串视为命中）
+   */
+  function matchesSearch(record, query) {
+    if (!query) {
+      return true;
+    }
+    const parts = [];
+    if (Array.isArray(record.tags) && record.tags.length > 0) {
+      parts.push(record.tags.join(" "));
+    }
+    ["prompt", "rawPrompt", "styleTemplateLabel", "modeLabel", "model", "aspectRatio"].forEach((key) => {
+      const value = record[key];
+      if (typeof value === "string" && value) {
+        parts.push(value);
+      }
+    });
+    return parts.join(" ").toLowerCase().indexOf(query) !== -1;
+  }
+
   function getVisibleRecords() {
     const filterValue = elements.filter.value || ALL_RATIOS_LABEL;
-    return filterValue === ALL_RATIOS_LABEL
-      ? state.records.slice()
-      : state.records.filter((item) => item.aspectRatio === filterValue);
+    const query = (state.searchQuery || "").trim().toLowerCase();
+    return state.records.filter((item) => {
+      if (filterValue !== ALL_RATIOS_LABEL && item.aspectRatio !== filterValue) {
+        return false;
+      }
+      return matchesSearch(item, query);
+    });
   }
 
   function pruneSelection(records) {
@@ -250,6 +347,31 @@
     elements.latestTime.textContent = records.length > 0 ? formatTime(records[0].time) : "-";
   }
 
+  // 选中提示弹出的自动隐藏计时器与上次选中数量（用于跳过页面初始渲染时的无意义提示）
+  let selectionToastTimer = null;
+  let lastSelectionCount = 0;
+
+  /**
+   * 以浮动轻提示短暂展示选中状态，不占用工具栏版面
+   * @param {string} text 提示文字
+   */
+  function showSelectionToast(text) {
+    if (!elements.selectionSummary) {
+      return;
+    }
+    elements.selectionSummary.textContent = text;
+    elements.selectionSummary.hidden = false;
+    // 下一帧再加可见类，保证从隐藏到显示的过渡动画生效
+    requestAnimationFrame(() => elements.selectionSummary.classList.add("is-visible"));
+    clearTimeout(selectionToastTimer);
+    selectionToastTimer = setTimeout(() => {
+      elements.selectionSummary.classList.remove("is-visible");
+      setTimeout(() => {
+        elements.selectionSummary.hidden = true;
+      }, 220);
+    }, 2000);
+  }
+
   function updateSelectionSummary(visibleRecords) {
     const visibleIds = new Set(visibleRecords.map(getRecordId).filter(Boolean));
     let visibleSelectedCount = 0;
@@ -260,12 +382,16 @@
     });
 
     if (state.selectedRecordIds.size === 0) {
-      elements.selectionSummary.textContent = "未选中记录";
+      // 仅在「有选中 → 清空」时提示，避免页面初始渲染就弹出
+      if (lastSelectionCount > 0) {
+        showSelectionToast("已清空选择");
+      }
     } else if (state.selectedRecordIds.size === visibleSelectedCount) {
-      elements.selectionSummary.textContent = `已选 ${state.selectedRecordIds.size} 条记录`;
+      showSelectionToast(`已选 ${state.selectedRecordIds.size} 条记录`);
     } else {
-      elements.selectionSummary.textContent = `当前筛选已选 ${visibleSelectedCount} / ${state.selectedRecordIds.size} 条记录`;
+      showSelectionToast(`当前筛选已选 ${visibleSelectedCount} / ${state.selectedRecordIds.size} 条记录`);
     }
+    lastSelectionCount = state.selectedRecordIds.size;
 
     elements.selectVisibleRecords.disabled = visibleRecords.length === 0;
     elements.clearSelection.disabled = state.selectedRecordIds.size === 0;
@@ -551,7 +677,7 @@
 
         if (isJpeg) {
           // 原图已是 JPEG：直接复用原始字节，避免二次有损压缩
-          fetchRawBytes(src).then(finish).catch(reencodeToJpeg);
+          fetchRawBytes(__APP.safeImageUrl ? __APP.safeImageUrl(src) : src).then(finish).catch(reencodeToJpeg);
         } else {
           reencodeToJpeg();
         }
@@ -559,7 +685,7 @@
       img.onerror = function () {
         reject(new Error("图片加载失败"));
       };
-      img.src = src;
+      img.src = __APP.safeImageUrl ? __APP.safeImageUrl(src) : src;
     });
   }
 
@@ -720,7 +846,7 @@
   }
 
   function openLightbox(src, alt, caption) {
-    elements.lightboxImage.src = src;
+    elements.lightboxImage.src = __APP.safeImageUrl ? __APP.safeImageUrl(src) : src;
     elements.lightboxImage.alt = alt || "放大预览图片";
     elements.lightboxCaption.textContent = caption || "";
     elements.lightbox.hidden = false;
@@ -809,7 +935,7 @@
         card.dataset.recordId = recordId;
         card.dataset.promptExpanded = "false";
         card.classList.toggle("is-selected", selected);
-        image.src = src;
+        image.src = __APP.safeImageUrl ? __APP.safeImageUrl(src) : src;
         image.alt = promptText || `生成图片 ${index + 1}`;
         image.addEventListener("click", function () {
           openLightbox(src, image.alt, promptText);
@@ -817,10 +943,30 @@
         ratio.textContent = record.aspectRatio || "未记录比例";
         style.textContent = record.styleTemplateLabel || "未记录风格";
         title.textContent = promptText;
+
+        // 标签胶囊：点一下即作为关键词搜索
+        const tagsWrap = fragment.querySelector(".gallery-tags");
+        if (tagsWrap && Array.isArray(record.tags) && record.tags.length > 0) {
+          tagsWrap.hidden = false;
+          record.tags.forEach((tag) => {
+            const pill = document.createElement("button");
+            pill.type = "button";
+            pill.className = "tag-pill";
+            pill.textContent = tag;
+            pill.title = `点击筛选「${tag}」`;
+            pill.addEventListener("click", function () {
+              elements.search.value = tag;
+              state.searchQuery = tag;
+              renderCards();
+            });
+            tagsWrap.appendChild(pill);
+          });
+        }
+
         time.textContent = record.generationDurationSeconds != null
           ? `${formatTime(record.time)} · 耗时 ${formatDurationSeconds(record.generationDurationSeconds)}`
           : formatTime(record.time);
-        download.href = src;
+        download.href = __APP.safeImageUrl ? __APP.safeImageUrl(src) : src;
         download.download = `image-studio-gallery-${recordId || "record"}-${index + 1}.png`;
         recordSelect.dataset.recordId = recordId;
         recordSelect.checked = selected;
@@ -875,8 +1021,20 @@
     renderCards();
   });
 
+  // 搜索框：输入防抖后按关键词过滤（匹配标签、提示词等）
+  let searchTimer = null;
+  elements.search.addEventListener("input", function () {
+    window.clearTimeout(searchTimer);
+    searchTimer = window.setTimeout(function () {
+      state.searchQuery = elements.search.value || "";
+      renderCards();
+    }, 250);
+  });
+
   elements.refresh.addEventListener("click", function () {
-    renderCards();
+    renderCards().then(function () {
+      autoTagRecords();
+    });
   });
 
   // 打开本地图库文件夹：调用本地服务的 API，用系统文件管理器打开 generated-images 目录
@@ -956,5 +1114,8 @@
     resizeTimer = window.setTimeout(syncAllPromptToggles, 120);
   });
 
-  renderCards();
+  // 首次渲染完成后，自动为历史图片补打标签（已配置助手模型时）
+  renderCards().then(function () {
+    autoTagRecords();
+  });
 })();

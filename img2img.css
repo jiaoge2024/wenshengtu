@@ -232,6 +232,17 @@
 
 /* ==================== 要求面板 ==================== */
 
+.i2i-req-panel {
+  display: grid;
+  gap: 14px;
+  padding: 20px 24px;
+}
+
+.i2i-req-panel .i2i-req-body {
+  display: grid;
+  gap: 14px;
+}
+
 .i2i-req-panel .i2i-field {
   display: grid;
   gap: 6px;
@@ -348,6 +359,15 @@
   justify-content: space-between;
   align-items: center;
   gap: 12px;
+  /* 标题条整体可点击展开/收起，指针提示可点 */
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* 标题条内的功能按钮（如「复制全部」）保持普通指针，避免误导为可折叠 */
+.i2i-panel-head .ghost-button {
+  cursor: pointer;
 }
 
 .i2i-panel-head .i2i-section-title {
@@ -462,8 +482,16 @@
   line-height: 1.6;
 }
 
+/* 语义状态色与全局系统保持一致 */
 .i2i-status.is-error {
-  color: var(--danger);
+  color: var(--status-error);
+  font-weight: 600;
+}
+.i2i-status.is-success {
+  color: var(--status-success);
+}
+.i2i-status.is-running {
+  color: var(--status-running);
 }
 
 /* ==================== 结果区 ==================== */
@@ -548,8 +576,44 @@
   text-align: center;
 }
 
+/* spinner 与状态文字显示在源图模糊底图（.gen-lqip）之上 */
+.i2i-result-placeholder > span {
+  position: relative;
+}
+
 .i2i-result-placeholder.is-error {
-  color: var(--danger);
+  color: var(--status-error);
+}
+.i2i-result-placeholder.is-running {
+  color: var(--status-running);
+}
+
+/* 源图静态模糊底图（LQIP）：生成占位时铺满显示源图的失焦版本（无动画） */
+.gen-lqip {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  filter: blur(24px) saturate(1.2);
+  transform: scale(1.1);
+}
+
+/* 「继续编辑」聚焦提示：面板短暂高亮闪烁，引导用户输入新要求 */
+.i2i-req-panel.i2i-flash {
+  animation: i2i-req-flash 1.6s ease;
+}
+@keyframes i2i-req-flash {
+  0% { box-shadow: 0 0 0 3px rgba(176, 127, 46, 0.55); }
+  45% { box-shadow: 0 0 0 3px rgba(176, 127, 46, 0.55); }
+  100% { box-shadow: 0 0 0 3px rgba(176, 127, 46, 0); }
+}
+
+/* 「清空重来」两步确认的待确认态：红色醒目提示 */
+.ghost-button.is-armed {
+  border-color: var(--status-error);
+  color: var(--status-error);
+  font-weight: 600;
+  background: rgba(180, 77, 61, 0.08);
 }
 
 .i2i-result-spinner {

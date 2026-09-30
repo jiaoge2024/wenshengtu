@@ -57,6 +57,15 @@
   justify-content: space-between;
   align-items: center;
   gap: 12px;
+  /* 标题条整体可点击展开/收起，指针提示可点 */
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* 标题条内的功能按钮（如「清空」）保持普通指针，避免误导为可折叠 */
+.xhs-panel-head .ghost-button {
+  cursor: pointer;
 }
 
 .xhs-panel-head .xhs-section-title {
@@ -239,6 +248,22 @@
   color: var(--danger);
 }
 
+/* 「新建自定义风格」开关行（与文章配图板块同款） */
+.xhs-style-new-row {
+  display: flex;
+  margin-top: 2px;
+}
+
+.xhs-style-new {
+  font-size: 13px;
+}
+
+/* 关键修复：表单设置了 display:grid 后会覆盖浏览器默认的 [hidden]{display:none}，
+   不加这条规则表单将无法收起 */
+.xhs-config .xhs-style-form[hidden] {
+  display: none;
+}
+
 /* 自定义风格表单（添加 / 编辑） */
 .xhs-style-form {
   display: grid;
@@ -257,7 +282,16 @@
 
 .xhs-style-prompt-input {
   resize: vertical;
-  min-height: 64px;
+  min-height: 140px;
+}
+
+/* 风格描述字数实时统计（如 566/2000），右对齐小字不抢视觉 */
+.xhs-style-char-count {
+  justify-self: end;
+  font-size: 12px;
+  line-height: 1;
+  color: #94a3b8;
+  user-select: none;
 }
 
 .xhs-style-form-actions {
@@ -552,6 +586,11 @@
   font-size: 0.85rem;
   padding: 12px;
   text-align: center;
+}
+
+/* spinner 与状态文字显示在模糊占位层（.gen-blur-layer）之上 */
+.xhs-page-placeholder > span {
+  position: relative;
 }
 
 .xhs-page-placeholder.is-error {

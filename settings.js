@@ -82,6 +82,13 @@
     channels.forEach(function (ch) {
       bindChannelCardEvents(ch.id);
     });
+
+    // 已配置完整的启用通道：渲染后错峰触发轻量验证，状态灯直接给出健康度
+    channels.forEach(function (ch, i) {
+      if (ch.enabled && ch.apiKey && ch.baseUrl) {
+        setTimeout(function () { autoVerifyChannel(ch.id); }, 200 + i * 250);
+      }
+    });
   }
 
   /**
@@ -131,6 +138,8 @@
       + '<div class="ch-card-header">'
       + '  <span class="ch-card-icon">◈</span>'
       + '  <span class="ch-card-name">' + escapeHtml(ch.name || "未命名通道") + '</span>'
+      + '  <span class="ch-verify-dot" data-verify-dot title="尚未验证"></span>'
+      + '  <span class="ch-card-models' + (getChannelModelsText(ch) ? "" : " is-empty") + '">' + escapeHtml(getChannelModelsText(ch) || "未配置模型") + '</span>'
       + '  ' + statusBadge
       + '  <button type="button" class="ch-toggle-btn" aria-label="' + toggleLabel + '" aria-expanded="' + (!isConfigured) + '" title="' + toggleLabel + '">' + toggleIcon + '</button>'
       + '</div>'
@@ -241,6 +250,28 @@
       });
     }
 
+    // 输入自动保存：任意字段 input/change 后防抖 800ms 自动保存（无需手动点「保存」）
+    card.addEventListener("input", function (event) {
+      var field = event.target && event.target.getAttribute ? event.target.getAttribute("data-field") : null;
+      if (!field || field === "enabled") return;
+      scheduleAutoSave(channelId);
+    });
+    card.addEventListener("change", function (event) {
+      var field = event.target && event.target.getAttribute ? event.target.getAttribute("data-field") : null;
+      if (field === "enabled") {
+        // 启用开关立即保存并验证
+        clearTimeout(autoSaveTimers[channelId]);
+        if (persistChannel(channelId, false)) {
+          updateChannelCardSummary(channelId);
+          showToast("已自动保存 ✓");
+          autoVerifyChannel(channelId);
+        }
+        return;
+      }
+      if (field === "type") return; // 类型切换已有专门监听（控制字段显隐）
+      if (field) scheduleAutoSave(channelId);
+    });
+
     // 保存按钮
     var saveBtn = card.querySelector(".ch-save-btn");
     if (saveBtn) {
@@ -314,25 +345,132 @@
     };
   }
 
-  function saveChannelFromCard(channelId) {
+  /**
+   * 把卡片配置写入存储（手动/自动保存共用）
+   * @param {string} channelId 通道 ID
+   * @param {boolean} rerender 是否重渲染列表（自动保存时不重渲染，避免打字过程丢失焦点）
+   * @returns {boolean} 是否保存成功
+   */
+  function persistChannel(channelId, rerender) {
     var updated = readChannelFromCard(channelId);
-    if (!updated) return;
+    if (!updated) return false;
 
     if (!updated.name.trim()) {
       setStatus("通道名称不能为空");
-      return;
+      return false;
     }
 
     var channels = getChannels();
     var index = channels.findIndex(function (ch) { return ch.id === channelId; });
-    if (index === -1) return;
+    if (index === -1) return false;
 
     // 保留 builtin 标记
     updated.builtin = channels[index].builtin;
     channels[index] = updated;
     saveChannels(channels);
-    renderChannelList();
-    setStatus("通道「" + updated.name + "」已保存 — " + new Date().toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" }));
+    if (rerender) renderChannelList();
+    return true;
+  }
+
+  function saveChannelFromCard(channelId) {
+    if (!persistChannel(channelId, true)) return;
+    var updated = getChannels().find(function (ch) { return ch.id === channelId; });
+    setStatus("通道「" + (updated ? updated.name : "") + "」已保存 — " + new Date().toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" }));
+    // 手动保存后也立即触发一次轻量验证
+    autoVerifyChannel(channelId);
+  }
+
+  // ==================== 自动保存与轻量验证 ====================
+
+  /** 每张卡片的自动保存防抖计时器（channelId -> timer） */
+  var autoSaveTimers = {};
+
+  /**
+   * 卡片输入变化后的自动保存（防抖 800ms）：不打断输入，保存后顶部轻提示
+   * @param {string} channelId 通道 ID
+   */
+  function scheduleAutoSave(channelId) {
+    clearTimeout(autoSaveTimers[channelId]);
+    autoSaveTimers[channelId] = setTimeout(function () {
+      var card = elements.channelList.querySelector('[data-channel-id="' + channelId + '"]');
+      if (!card) return;
+      // 名称处于中间态（为空）时跳过自动保存，等用户补全
+      var nameInput = card.querySelector(".ch-name-input");
+      if (nameInput && !nameInput.value.trim()) return;
+      if (persistChannel(channelId, false)) {
+        updateChannelCardSummary(channelId);
+        showToast("已自动保存 ✓");
+        autoVerifyChannel(channelId);
+      }
+    }, 800);
+  }
+
+  /** 更新卡片头部摘要（模型预览文字），自动保存时保持头部信息同步 */
+  function updateChannelCardSummary(channelId) {
+    var card = elements.channelList.querySelector('[data-channel-id="' + channelId + '"]');
+    if (!card) return;
+    var ch = getChannels().find(function (c) { return c.id === channelId; });
+    if (!ch) return;
+    var modelPreview = card.querySelector(".ch-card-models");
+    if (modelPreview) {
+      var models = getChannelModelsText(ch);
+      modelPreview.textContent = models || "未配置模型";
+      modelPreview.classList.toggle("is-empty", !models);
+    }
+  }
+
+  /**
+   * 保存后自动轻量验证：请求 /v1/models 判断 Key 与连通性（不产生生图费用）
+   * 结果通过卡片头部状态灯呈现：绿=通过 红=失败 灰=未验证/无法验证
+   * @param {string} channelId 通道 ID
+   */
+  async function autoVerifyChannel(channelId) {
+    var card = elements.channelList.querySelector('[data-channel-id="' + channelId + '"]');
+    var dot = card ? card.querySelector("[data-verify-dot]") : null;
+    var ch = getChannels().find(function (c) { return c.id === channelId; });
+    if (!dot || !ch) return;
+    var setDot = function (cls, title) {
+      dot.className = "ch-verify-dot " + cls;
+      dot.title = title;
+    };
+    if (!ch.enabled || !ch.apiKey || !ch.baseUrl) {
+      setDot("is-idle", ch.enabled ? "未填写 API Key 或接口地址，暂不验证" : "通道已停用");
+      return;
+    }
+    setDot("is-testing", "正在验证连接...");
+    try {
+      var baseUrl = String(ch.baseUrl || "").replace(/\/+$/, "");
+      var res = await window.__APP.proxyFetch(baseUrl + "/v1/models", {
+        method: "GET",
+        headers: { Authorization: "Bearer " + ch.apiKey }
+      });
+      if (res.ok) {
+        setDot("is-ok", "连接验证通过 ✓");
+      } else if (res.status === 401 || res.status === 403) {
+        setDot("is-fail", "API Key 无效或无权限（HTTP " + res.status + "）");
+      } else {
+        setDot("is-fail", "连接异常（HTTP " + res.status + "），部分服务商不支持列表接口，可点「测试」实测生图");
+      }
+    } catch (error) {
+      console.error("[settings] 通道自动验证失败", error);
+      setDot("is-fail", "无法连接到服务商，请检查接口地址");
+    }
+  }
+
+  /** 顶部轻提示（自动保存等非阻断反馈），2 秒后自动消失 */
+  function showToast(message) {
+    var toast = document.getElementById("settings-toast");
+    if (!toast) {
+      toast = document.createElement("div");
+      toast.id = "settings-toast";
+      document.body.appendChild(toast);
+    }
+    toast.textContent = message;
+    toast.classList.add("is-visible");
+    clearTimeout(showToast._timer);
+    showToast._timer = setTimeout(function () {
+      toast.classList.remove("is-visible");
+    }, 2000);
   }
 
   function deleteChannel(channelId) {

@@ -6,6 +6,7 @@
     <title>小红书图文笔记 · 图生图长</title>
     <link rel="stylesheet" href="./styles.css" />
     <link rel="stylesheet" href="./xhs.css" />
+    <link rel="stylesheet" href="./app-rail.css" />
   </head>
   <body>
     <div class="xhs-shell">
@@ -15,12 +16,6 @@
           <p class="eyebrow">Xiaohongshu Notes</p>
           <h1>小红书图文笔记</h1>
           <p class="hero-text">输入一个主题，AI 自动策划笔记大纲并为每一页生成配图提示词，再逐张调用你的生图通道出图，产出可直接发布的小红书图文笔记。</p>
-        </div>
-        <div class="hero-actions">
-          <a class="nav-link" href="./index.html">返回创作台</a>
-          <a class="nav-link" href="./img2img.html">图生图工作台</a>
-          <a class="nav-link" href="./prompts.html">提示词库</a>
-          <a class="nav-link" href="./gallery.html">本地图片库</a>
         </div>
       </header>
 
@@ -44,11 +39,15 @@
           <!-- 风格被搜索过滤后无匹配结果的提示 -->
           <p class="xhs-style-empty" id="xhs-style-empty" hidden>没有匹配的风格，换个关键词试试。</p>
 
-          <!-- 自定义风格：添加 / 编辑，保存后写入本地风格库 -->
-          <div class="xhs-style-form">
+          <!-- 自定义风格：默认收起，点击「新建自定义风格」展开表单（与文章配图板块同款交互） -->
+          <div class="xhs-style-new-row">
+            <button class="ghost-button xhs-style-new" id="xhs-style-new" type="button">＋ 新建自定义风格</button>
+          </div>
+          <div class="xhs-style-form" id="xhs-style-form" hidden>
             <span class="field-label" id="xhs-style-form-title">自定义风格</span>
             <input id="xhs-style-name" class="text-input" type="text" maxlength="30" placeholder="风格名称，如：科技感蓝调" />
-            <textarea id="xhs-style-prompt" class="text-input xhs-style-prompt-input" rows="3" maxlength="600" placeholder="风格描述 Prompt，如：深蓝色科技感，发光线条，未来感 HUD 界面元素..."></textarea>
+            <textarea id="xhs-style-prompt" class="text-input xhs-style-prompt-input" rows="6" maxlength="2000" placeholder="风格描述 Prompt，如：深蓝色科技感，发光线条，未来感 HUD 界面元素..."></textarea>
+            <div class="xhs-style-char-count" id="xhs-style-prompt-count">0/2000</div>
             <div class="xhs-style-form-actions">
               <button class="ghost-button" id="xhs-style-save" type="button">保存自定义风格</button>
               <button class="ghost-button" id="xhs-style-cancel" type="button" hidden>取消编辑</button>
@@ -154,6 +153,7 @@
         <div class="xhs-page-visual">
           <img class="xhs-page-img" alt="笔记配图" hidden />
           <div class="xhs-page-placeholder">
+            <i class="gen-blur-layer"></i>
             <span class="xhs-page-spinner" hidden></span>
             <span class="xhs-page-status-text">等待生成</span>
           </div>
@@ -179,5 +179,6 @@
     <script src="./app-config.js"></script>
     <script src="./app-utils.js"></script>
     <script src="./xhs.js"></script>
+    <script src="./app-nav.js"></script>
   </body>
 </html>

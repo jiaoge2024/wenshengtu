@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>图生图长 · AI创作台</title>
     <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./app-rail.css" />
   </head>
   <body>
     <div class="shell">
@@ -16,11 +17,7 @@
             <p class="lede">文生图，批量生图与模板变量，多模型可切换，本地图库与提示词库一站搞定。</p>
           </div>
           <div class="brand-actions">
-            <a class="nav-link" href="./help.html">使用说明</a>
-            <a class="nav-link" href="./gallery.html" target="_blank" rel="noopener">本地图片库</a>
-            <a class="nav-link" href="./prompts.html" target="_blank" rel="noopener">提示词库</a>
-            <a class="nav-link" href="./xhs.html" target="_blank" rel="noopener">小红书笔记</a>
-            <a class="nav-link" href="./img2img.html" target="_blank" rel="noopener">图生图工作台</a>
+            <a class="ghost-link" href="./settings.html">通道设置</a>
           </div>
         </section>
 
@@ -136,7 +133,6 @@
                   <button class="mode-button is-active" data-task-mode="single" type="button">单次</button>
                   <button class="mode-button" data-task-mode="batch" type="button">
                     <span class="mode-button-text">批量</span>
-                    <span class="mode-button-pulse" aria-hidden="true"></span>
                   </button>
                 </div>
               </div>
@@ -320,5 +316,6 @@
     <script src="./app-config.js"></script>
     <script src="./app-utils.js"></script>
     <script src="./app.js"></script>
+    <script src="./app-nav.js"></script>
   </body>
 </html>

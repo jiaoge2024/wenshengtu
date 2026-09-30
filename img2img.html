@@ -6,6 +6,7 @@
     <title>图生图工作台</title>
     <link rel="stylesheet" href="./styles.css" />
     <link rel="stylesheet" href="./img2img.css" />
+    <link rel="stylesheet" href="./app-rail.css" />
   </head>
   <body>
     <div class="i2i-shell">
@@ -14,87 +15,16 @@
         <div>
           <p class="eyebrow">Image to Image</p>
           <h1>图生图工作台</h1>
-          <p class="hero-text">选择功能模式 → 上传图片 → 一键执行。支持提取中英文提示词、修改图片内容、多图合成。</p>
-        </div>
-        <div class="hero-actions">
-          <a class="nav-link" href="./index.html">返回创作台</a>
-          <a class="nav-link" href="./prompts.html">提示词库</a>
-          <a class="nav-link" href="./gallery.html">本地图片库</a>
-          <a class="nav-link" href="./xhs.html">小红书笔记</a>
+          <p class="hero-text">设置模型 → 上传图片 → 选择功能 → 一键执行。支持提取中英文提示词、修改图片内容、多图合成。</p>
         </div>
       </header>
 
-      <!-- 1 · 选择功能 -->
-      <section class="i2i-mode-panel panel">
-        <h2 class="i2i-section-title">1 · 选择功能</h2>
-        <div class="i2i-mode-cards" id="i2i-mode-cards" aria-label="选择功能模式"></div>
-      </section>
-
-      <!-- 2 · 上传图片 -->
-      <section class="i2i-upload-panel panel">
-        <h2 class="i2i-section-title">2 · 上传图片</h2>
-        <div class="i2i-dropzone" id="i2i-dropzone" tabindex="0" role="button" aria-label="上传图片：点击选择、拖拽或粘贴">
-          <input id="i2i-file-input" type="file" accept="image/*" multiple hidden />
-          <span class="i2i-dropzone-icon">🖼️</span>
-          <p class="i2i-dropzone-text"><strong>点击选择图片</strong>，或把图片拖到这里，也可以直接 <kbd>Ctrl</kbd>+<kbd>V</kbd> 粘贴</p>
-          <p class="i2i-dropzone-note" id="i2i-dropzone-note">支持 JPG / PNG / WebP 等格式；图片仅在本地压缩后发送给你配置的模型服务。</p>
-        </div>
-        <!-- 多图预览网格 -->
-        <div class="i2i-multi-preview" id="i2i-multi-preview" hidden></div>
-      </section>
-
-      <!-- 3 · 描述要求（修改/合成模式） -->
-      <section class="i2i-req-panel panel" id="i2i-req-panel" hidden>
-        <h2 class="i2i-section-title">3 · 描述要求</h2>
-        <div class="i2i-field">
-          <label class="field-label" for="i2i-extra-req" id="i2i-req-label">修改要求</label>
-          <textarea id="i2i-extra-req" class="text-input" rows="3" maxlength="500" placeholder="例：把小女孩手里的猫换成一只小狗，其余保持不变。"></textarea>
-        </div>
-      </section>
-
-      <!-- 提取结果面板（提取模式） -->
-      <article class="i2i-extract-result panel" id="i2i-extract-result" hidden>
-        <div class="i2i-panel-head">
-          <h2 class="i2i-section-title">提取结果</h2>
-          <div class="i2i-head-actions">
-            <button class="ghost-button small-button" id="i2i-copy-all" type="button">复制全部</button>
-            <button class="i2i-collapse-toggle" id="i2i-extract-toggle" type="button" aria-expanded="true" aria-controls="i2i-extract-body">收起 ▴</button>
-          </div>
-        </div>
-        <div class="i2i-panel-body i2i-extract-body" id="i2i-extract-body">
-          <p class="i2i-extract-summary" id="i2i-extract-summary"></p>
-          <div class="i2i-prompt-block">
-            <div class="i2i-prompt-head">
-              <label class="field-label" for="i2i-prompt-zh">中文提示词</label>
-              <button class="ghost-button small-button" id="i2i-copy-zh" type="button">复制中文</button>
-            </div>
-            <textarea id="i2i-prompt-zh" class="text-input i2i-prompt-input" rows="4" readonly></textarea>
-          </div>
-          <div class="i2i-prompt-block">
-            <div class="i2i-prompt-head">
-              <label class="field-label" for="i2i-prompt-en">英文提示词（English Prompt）</label>
-              <button class="ghost-button small-button" id="i2i-copy-en" type="button">复制英文</button>
-            </div>
-            <textarea id="i2i-prompt-en" class="text-input i2i-prompt-input" rows="4" readonly></textarea>
-          </div>
-        </div>
-      </article>
-
-      <!-- 操作区 -->
-      <section class="i2i-composer panel">
-        <div class="i2i-composer-actions">
-          <button class="primary-button" id="i2i-run" type="button">一键提取提示词</button>
-          <button class="primary-button" id="i2i-continue" type="button" hidden>继续</button>
-          <button class="ghost-button danger" id="i2i-stop" type="button" hidden>停止</button>
-          <button class="ghost-button" id="i2i-reset" type="button" hidden>清空重来</button>
-        </div>
-        <p class="i2i-status" id="i2i-status" hidden></p>
-      </section>
-
-      <!-- 高级设置（可折叠） -->
+      <!-- 高级设置（可折叠）
+           用户期望的操作流程是：先设置好参数 → 再上传图片 → 选择功能 → 执行。
+           因此把「高级设置」提到最前，作为第 1 步。 -->
       <section class="i2i-config panel">
         <div class="i2i-panel-head">
-          <h2 class="i2i-section-title">高级设置</h2>
+          <h2 class="i2i-section-title">1 · 高级设置</h2>
           <button class="i2i-collapse-toggle" id="i2i-config-toggle" type="button" aria-expanded="false" aria-controls="i2i-config-body">展开 ▾</button>
         </div>
         <div class="i2i-panel-body" id="i2i-config-body" hidden>
@@ -129,6 +59,80 @@
         </div>
       </section>
 
+      <!-- 2 · 上传图片 -->
+      <section class="i2i-upload-panel panel">
+        <h2 class="i2i-section-title">2 · 上传图片</h2>
+        <div class="i2i-dropzone" id="i2i-dropzone" tabindex="0" role="button" aria-label="上传图片：点击选择、拖拽或粘贴">
+          <input id="i2i-file-input" type="file" accept="image/*" multiple hidden />
+          <span class="i2i-dropzone-icon">🖼️</span>
+          <p class="i2i-dropzone-text"><strong>点击选择图片</strong>，或把图片拖到这里，也可以直接 <kbd>Ctrl</kbd>+<kbd>V</kbd> 粘贴</p>
+          <p class="i2i-dropzone-note" id="i2i-dropzone-note">支持 JPG / PNG / WebP 等格式；图片仅在本地压缩后发送给你配置的模型服务。</p>
+        </div>
+        <!-- 多图预览网格 -->
+        <div class="i2i-multi-preview" id="i2i-multi-preview" hidden></div>
+      </section>
+
+      <!-- 3 · 选择功能 -->
+      <section class="i2i-mode-panel panel">
+        <h2 class="i2i-section-title">3 · 选择功能</h2>
+        <div class="i2i-mode-cards" id="i2i-mode-cards" aria-label="选择功能模式"></div>
+      </section>
+
+      <!-- 4 · 描述要求（修改/合成模式） -->
+      <section class="i2i-req-panel panel" id="i2i-req-panel" hidden>
+        <div class="i2i-panel-head">
+          <h2 class="i2i-section-title">4 · 描述要求</h2>
+          <div class="i2i-head-actions">
+            <button class="ghost-button small-button" id="i2i-clear-req" type="button">一键清空</button>
+          </div>
+        </div>
+        <div class="i2i-req-body">
+          <div class="i2i-field">
+            <label class="field-label" for="i2i-extra-req" id="i2i-req-label">修改要求</label>
+            <textarea id="i2i-extra-req" class="text-input" rows="3" maxlength="500" placeholder="例：把小女孩手里的猫换成一只小狗，其余保持不变。"></textarea>
+          </div>
+        </div>
+      </section>
+
+      <!-- 操作区 -->
+      <section class="i2i-composer panel">
+        <div class="i2i-composer-actions">
+          <button class="primary-button" id="i2i-run" type="button">一键提取提示词</button>
+          <button class="primary-button" id="i2i-continue" type="button" hidden>继续</button>
+          <button class="ghost-button danger" id="i2i-stop" type="button" hidden>停止</button>
+          <button class="ghost-button" id="i2i-reset" type="button" hidden>清空重来</button>
+        </div>
+        <p class="i2i-status" id="i2i-status" hidden></p>
+      </section>
+
+      <!-- 提取结果面板（提取模式，置于操作区之后） -->
+      <article class="i2i-extract-result panel" id="i2i-extract-result" hidden>
+        <div class="i2i-panel-head">
+          <h2 class="i2i-section-title">提取结果</h2>
+          <div class="i2i-head-actions">
+            <button class="ghost-button small-button" id="i2i-copy-all" type="button">复制全部</button>
+            <button class="i2i-collapse-toggle" id="i2i-extract-toggle" type="button" aria-expanded="true" aria-controls="i2i-extract-body">收起 ▴</button>
+          </div>
+        </div>
+        <div class="i2i-panel-body i2i-extract-body" id="i2i-extract-body">
+          <p class="i2i-extract-summary" id="i2i-extract-summary"></p>
+          <div class="i2i-prompt-block">
+            <div class="i2i-prompt-head">
+              <label class="field-label" for="i2i-prompt-zh">中文提示词</label>
+              <button class="ghost-button small-button" id="i2i-copy-zh" type="button">复制中文</button>
+            </div>
+            <textarea id="i2i-prompt-zh" class="text-input i2i-prompt-input" rows="4" readonly></textarea>
+          </div>
+          <div class="i2i-prompt-block">
+            <div class="i2i-prompt-head">
+              <label class="field-label" for="i2i-prompt-en">英文提示词（English Prompt）</label>
+              <button class="ghost-button small-button" id="i2i-copy-en" type="button">复制英文</button>
+            </div>
+            <textarea id="i2i-prompt-en" class="text-input i2i-prompt-input" rows="4" readonly></textarea>
+          </div>
+        </div>
+      </article>
+
       <!-- 结果区 -->
       <main class="i2i-results">
         <div class="i2i-results-grid" id="i2i-results-grid"></div>
@@ -146,6 +150,7 @@
         <div class="i2i-result-visual">
           <img class="i2i-result-img" alt="生成的图片" hidden />
           <div class="i2i-result-placeholder">
+            <i class="gen-lqip" hidden></i>
             <span class="i2i-result-spinner" hidden></span>
             <span class="i2i-result-status-text">等待生成</span>
           </div>
@@ -165,5 +170,6 @@
     <script src="./app-config.js"></script>
     <script src="./app-utils.js"></script>
     <script src="./img2img.js"></script>
+    <script src="./app-nav.js"></script>
   </body>
 </html>

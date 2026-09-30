@@ -18,6 +18,35 @@
     return value.toFixed(1).replace(/\.0$/, "") + " 秒";
   };
 
+  // ==================== 全局轻提示 ====================
+
+  /**
+   * 全局轻提示：屏幕下方居中浮现的小气泡，短暂停留后自动消失。
+   * 重复调用时复用同一个元素，只更新文字并重置计时，避免叠层。
+   * @param {string} message 提示文案
+   * @param {number} [duration] 停留毫秒数，默认 2400
+   */
+  __APP.showToast = function (message, duration) {
+    if (!message) {
+      return;
+    }
+    var toast = document.getElementById("app-toast");
+    if (!toast) {
+      toast = document.createElement("div");
+      toast.id = "app-toast";
+      toast.setAttribute("role", "status");
+      document.body.appendChild(toast);
+    }
+    toast.textContent = message;
+    // 触发一次重排，保证连续调用时淡入动画能重新播放
+    void toast.offsetWidth;
+    toast.classList.add("is-visible");
+    clearTimeout(__APP.showToast._timer);
+    __APP.showToast._timer = setTimeout(function () {
+      toast.classList.remove("is-visible");
+    }, Math.max(800, Number(duration) || 2400));
+  };
+
   __APP.normalizeModelValue = function (value) {
     if (value === "gpt-image-2-official") {
       return __APP.GPT_IMAGE_MODEL;
@@ -151,6 +180,37 @@
   };
 
   /**
+   * 将接口类型翻译成用户能看懂的说法（避免协议术语直接暴露给用户）
+   * @param {string} type 通道类型（openai_images / agnes 等）
+   * @returns {string} 用户友好的接口描述
+   */
+  __APP.describeChannelType = function (type) {
+    if (type === "agnes") return "Agnes 专用生图接口";
+    if (type === "openai_images") return "通用标准接口";
+    return "生图接口";
+  };
+
+  /**
+   * 将出图模式翻译成用户能看懂的说法
+   * @param {string} mode 出图模式（auto / sync / async）
+   * @returns {string} 用户友好的出图方式描述
+   */
+  __APP.describeChannelMode = function (mode) {
+    if (mode === "sync") return "快速直出（一般 10~60 秒）";
+    if (mode === "async") return "排队出图（高峰期稍慢）";
+    return "自动出图（无需关心细节）";
+  };
+
+  /**
+   * 生成通道的用户友好说明（用于下拉下方的提示行）
+   * @param {Object} ch 通道对象
+   * @returns {string} 如「通用标准接口 · 自动出图（无需关心细节）」
+   */
+  __APP.describeChannelNote = function (ch) {
+    return __APP.describeChannelType(ch.type) + " · " + __APP.describeChannelMode(ch.mode);
+  };
+
+  /**
    * 获取当前完整的模型选项列表（从动态通道生成，支持一通道多模型）
    * @returns {Array} 模型选项数组
    */
@@ -174,7 +234,7 @@
           options.push({
             value: optionValue,
             label: ch.name + " · " + modelName,
-            note: ch.type === "openai_images" ? "OpenAI Images 兼容接口，模式：" + (ch.mode || "auto") : ch.type === "agnes" ? "Agnes Image 生图" : "",
+            note: __APP.describeChannelNote(ch),
             channel: "image-channel",
             channelId: ch.id,
             channelName: ch.name,
@@ -205,7 +265,7 @@
           return {
             value: modelName + "|" + ch.id,
             label: modelName,
-            note: ch.type === "openai_images" ? "OpenAI Images 兼容接口，模式：" + (ch.mode || "auto") : ch.type === "agnes" ? "Agnes Image 生图" : "",
+            note: __APP.describeChannelNote(ch),
             channel: "image-channel",
             channelId: ch.id,
             channelName: ch.name,
@@ -1094,6 +1154,22 @@ __APP.isCustomImageModel = function (value) {
   // ==================== 服务端代理 fetch ====================
 
   /**
+   * 把本地生成的图片路径转为可安全放进 URL 的形式
+   * 历史版本的文件名可能含 #（提示词主题未过滤），浏览器会把 URL 中的 # 当作
+   * 锚点截断路径导致 404，这里编码为 %23（服务端静态文件会 decodeURIComponent 还原）
+   * dataURL / 外部 http(s) 地址原样返回
+   * @param {string} src 图片地址
+   * @returns {string} 可直接赋给 img.src / a.href / fetch 的地址
+   */
+  __APP.safeImageUrl = function (src) {
+    var value = String(src || "").trim();
+    if (!value || value.indexOf("data:") === 0 || /^https?:\/\//i.test(value)) {
+      return value;
+    }
+    return value.replace(/#/g, "%23");
+  };
+
+  /**
    * 通过本地服务器代理转发外部 API 请求，绕过浏览器 CORS 限制
    * 返回的对象模拟标准 Response 接口（ok / status / json()）
    * @param {string} url - 目标 API 地址（必须 HTTPS）
@@ -1139,5 +1215,129 @@ __APP.isCustomImageModel = function (value) {
     };
 
     return mockResponse;
+  };
+
+  // ==================== 图库自动打标签 ====================
+
+  /** 图库自动打标签的视觉模型指令：只返回 JSON 数组 */
+  var IMAGE_TAG_INSTRUCTION =
+    "你是图片标签助手。仔细观察这张图片，输出 4-8 个最能概括图片主题、场景、主体、风格、色调或用途的中文短标签。" +
+    "每个标签 2-6 个字，不加标点。只返回一个 JSON 字符串数组，不要任何其他文字，格式示例：[\"美食\",\"早餐\",\"暖色调\",\"俯拍\"]。";
+
+  var GALLERY_STORAGE_KEY = "image-studio:image-gallery-v1";
+
+  /**
+   * 把图片源（同源 URL 或 dataURL）压缩转成 dataURL，用于发给视觉模型省 token
+   * @param {string} src 图片地址（/generated-images/... 或 data:image/...）
+   * @param {number} [maxEdge] 最长边像素上限，默认 640
+   * @returns {Promise<string>} JPEG dataURL
+   */
+  __APP.imageSrcToDataUrl = function (src, maxEdge) {
+    maxEdge = Number(maxEdge) || 640;
+    return new Promise(function (resolve, reject) {
+      var img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = function () {
+        try {
+          var width = img.naturalWidth || img.width;
+          var height = img.naturalHeight || img.height;
+          var scale = Math.min(1, maxEdge / Math.max(width, height, 1));
+          var canvas = document.createElement("canvas");
+          canvas.width = Math.max(1, Math.round(width * scale));
+          canvas.height = Math.max(1, Math.round(height * scale));
+          var ctx = canvas.getContext("2d");
+          ctx.fillStyle = "#ffffff";
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          resolve(canvas.toDataURL("image/jpeg", 0.85));
+        } catch (error) {
+          reject(error);
+        }
+      };
+      img.onerror = function () {
+        reject(new Error("图片加载失败：" + src));
+      };
+      img.src = __APP.safeImageUrl ? __APP.safeImageUrl(src) : src;
+    });
+  };
+
+  /**
+   * 调用「AI 助手模型」（视觉）为一张图片生成中文标签
+   * @param {string} imageSrc 图片地址（同源 URL 或 dataURL）
+   * @returns {Promise<string[]>} 标签数组（4-8 个）
+   * @throws {Error} 未配置助手模型 / 模型返回不可解析时抛错
+   */
+  __APP.requestImageTags = async function (imageSrc) {
+    var providerId = __APP.getOptimizeProvider();
+    var provider = __APP.getLlmProviderById(providerId);
+    if (!provider || !provider.apiKey) {
+      throw new Error("未配置 AI 助手模型，无法自动打标签。请到设置页「AI 助手模型」完成配置。");
+    }
+    var model = __APP.getOptimizeModel();
+    if (!model) {
+      throw new Error("未指定 AI 助手模型名，无法自动打标签。");
+    }
+    var dataUrl = await __APP.imageSrcToDataUrl(imageSrc, 512);
+    var messages = __APP.buildVisionMessages(IMAGE_TAG_INSTRUCTION, "请为这张图片输出标签 JSON 数组。", dataUrl);
+    var text = await __APP.callLlmApi(provider, model, messages);
+    var match = String(text || "").match(/\[[\s\S]*\]/);
+    if (!match) {
+      throw new Error("模型未返回标签 JSON 数组。");
+    }
+    var parsed = JSON.parse(match[0]);
+    if (!Array.isArray(parsed)) {
+      throw new Error("标签格式不正确。");
+    }
+    return parsed
+      .map(function (item) { return String(item).replace(/["#\s]+/g, "").trim(); })
+      .filter(Boolean)
+      .slice(0, 8);
+  };
+
+  /**
+   * 把标签持久化到图库记录：优先走本地服务接口，失败（file:// 或旧版服务）回退 localStorage
+   * 注意：这是同源本地接口，必须直接 fetch；不能走 proxyFetch（代理仅支持外部 https 绝对地址）
+   * @param {string} recordId 记录 ID
+   * @param {string[]} tags 标签数组
+   * @returns {Promise<boolean>} 是否写入成功
+   */
+  __APP.updateGalleryRecordTags = async function (recordId, tags) {
+    if (window.location.protocol !== "file:") {
+      try {
+        var res = await fetch("/api/image-studio/update-tags", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: recordId, tags: tags })
+        });
+        if (res.ok) {
+          var data = await res.json();
+          if (data && data.ok !== false) {
+            return true;
+          }
+        }
+      } catch (error) {
+        // 本地服务不可用时回退 localStorage
+      }
+    }
+    try {
+      var raw = window.localStorage.getItem(GALLERY_STORAGE_KEY);
+      var records = raw ? JSON.parse(raw) : [];
+      if (!Array.isArray(records)) {
+        return false;
+      }
+      var hit = false;
+      records.forEach(function (record) {
+        if (record && String(record.id) === String(recordId)) {
+          record.tags = tags;
+          hit = true;
+        }
+      });
+      if (hit) {
+        window.localStorage.setItem(GALLERY_STORAGE_KEY, JSON.stringify(records));
+      }
+      return hit;
+    } catch (error) {
+      return false;
+    }
   };
 })();

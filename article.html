@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>文章配图 · 图生图长</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./xhs.css" />
+    <link rel="stylesheet" href="./article.css" />
+    <link rel="stylesheet" href="./app-rail.css" />
+  </head>
+  <body>
+    <div class="article-shell">
+      <!-- 顶部：标题与说明 -->
+      <header class="article-hero panel">
+        <div>
+          <p class="eyebrow">Article Illustration</p>
+          <h1>文章配图</h1>
+          <p class="hero-text">粘贴一段文章（或上传 txt / Word 文档），选择统一的配图风格与张数，AI 从内容中找出最佳插图点并逐张生成配图，图文对照、一键下载。</p>
+        </div>
+        <div class="article-hero-actions">
+          <button class="ghost-button article-reset-button" id="article-reset" type="button">一键清空重来</button>
+        </div>
+      </header>
+
+      <!-- 输入区：文章内容（支持粘贴与文档上传） -->
+      <section class="article-input panel">
+        <div class="article-panel-head">
+          <h2 class="article-section-title">输入文章内容</h2>
+          <div class="article-head-actions">
+            <button class="ghost-button" id="article-clear" type="button" hidden>清空</button>
+            <button class="article-collapse-toggle" id="article-input-toggle" type="button" aria-expanded="true" aria-controls="article-input-body">收起 ▴</button>
+          </div>
+        </div>
+        <div class="article-panel-body" id="article-input-body">
+          <textarea id="article-text" class="text-input article-textarea" rows="10"
+            placeholder="把文章粘贴到这里……&#10;&#10;支持直接粘贴文字，或点击下方「上传文档」导入 .txt / .md / .docx 文件。"></textarea>
+          <div class="article-input-toolbar">
+            <button class="ghost-button" id="article-upload" type="button">上传文档</button>
+            <input id="article-file" type="file" accept=".txt,.md,.markdown,.docx" hidden />
+            <button class="ghost-button" id="article-example" type="button">填入示例</button>
+            <span class="article-char-count" id="article-char-count">0 字</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- 配置区：风格 + 模型 + 张数（可折叠） -->
+      <section class="article-config panel">
+        <div class="article-panel-head">
+          <h2 class="article-section-title">创作配置</h2>
+          <button class="article-collapse-toggle" id="article-config-toggle" type="button" aria-expanded="false" aria-controls="article-config-body">展开 ▾</button>
+        </div>
+        <div class="article-panel-body" id="article-config-body" hidden>
+          <h3 class="article-sub-title">1 · 配图风格<span class="article-sub-title-note">文章配图独立风格库 · 点击卡片选中，再点取消</span></h3>
+          <!-- 风格卡片：点击选中，卡片上可编辑/删除；风格库与小红书板块各自独立 -->
+          <input id="article-style-search" class="text-input xhs-style-search" type="text"
+            placeholder="按名称搜索风格…" hidden />
+          <div id="article-style-cards" class="xhs-style-cards" aria-label="配图风格列表"></div>
+          <p class="article-style-hint" id="article-style-hint">未选中任何风格时，配图将完全忠实于提示词本身的画面描述。</p>
+          <!-- 自定义风格：默认收起，点击「新建自定义风格」展开表单 -->
+          <div class="article-style-new-row">
+            <button class="ghost-button article-style-new" id="article-style-new" type="button">＋ 新建自定义风格</button>
+          </div>
+          <div class="xhs-style-form" id="article-style-form" hidden>
+            <span class="field-label">自定义风格</span>
+            <input id="article-style-name" class="text-input" type="text" maxlength="30" placeholder="风格名称，如：吉卜力水彩" />
+            <textarea id="article-style-prompt" class="text-input xhs-style-prompt-input" rows="6" maxlength="2000"
+              placeholder="风格描述 Prompt（作为统一画风注入每张配图），如：吉卜力水彩、暖色调、留白多、笔触柔和..."></textarea>
+            <div class="xhs-style-char-count" id="article-style-prompt-count">0/2000</div>
+            <div class="xhs-style-form-actions">
+              <button id="article-style-save" class="ghost-button" type="button">保存自定义风格</button>
+              <button id="article-style-cancel" class="ghost-button" type="button" hidden>取消编辑</button>
+              <!-- 风格库迁移：导出为 JSON 文件 / 从 JSON 文件导入（操作文章配图自己的独立风格库） -->
+              <button class="ghost-button" id="article-style-export" type="button" title="把文章配图风格库导出为 JSON 文件，用于备份或迁移到其它电脑">导出风格</button>
+              <button class="ghost-button" id="article-style-import" type="button" title="从 JSON 文件导入风格库到文章配图（不影响小红书板块）">导入风格</button>
+              <input id="article-style-import-file" type="file" accept=".json,application/json" hidden />
+            </div>
+          </div>
+
+          <h3 class="article-sub-title">2 · 确认模型与张数</h3>
+          <div class="article-config-row-one">
+            <div class="article-config-block">
+              <label class="field-label" for="article-model">生图模型（来自通道设置）</label>
+              <select id="article-model" class="text-input article-select"></select>
+              <p class="article-model-note" id="article-model-note"></p>
+            </div>
+            <div class="article-config-block">
+              <label class="field-label" for="article-ratio">尺寸比例</label>
+              <select id="article-ratio" class="text-input article-select"></select>
+            </div>
+            <div class="article-config-block">
+              <label class="field-label" for="article-quality">生图质量</label>
+              <select id="article-quality" class="text-input article-select"></select>
+            </div>
+            <div class="article-config-block">
+              <label class="field-label" for="article-count">配图张数</label>
+              <select id="article-count" class="text-input article-select">
+                <option value="auto" selected>智能推荐</option>
+                <option value="1">1 张</option>
+                <option value="2">2 张</option>
+                <option value="3">3 张</option>
+                <option value="4">4 张</option>
+                <option value="6">6 张</option>
+                <option value="8">8 张</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 主操作：AI 拆解插图点 -->
+      <div class="article-actions">
+        <button class="primary-button" id="article-analyze" type="button" disabled>AI 拆解插图点</button>
+        <button class="ghost-button" id="article-stop" type="button" hidden>停止生图</button>
+        <p class="article-status" id="article-status" hidden></p>
+      </div>
+      <!-- 文本模型引导：未配置「AI 助手模型」时显示，指向设置页 -->
+      <p class="article-llm-hint" id="article-llm-hint" hidden>
+        「AI 拆解插图点」由 AI 助手模型驱动（提炼核心观点、按结构分配插图）；未配置时只能按段落规则粗拆。
+        <a class="nav-link" href="./settings.html">去「AI 助手模型」配置 →</a>
+      </p>
+
+      <!-- 拆解结果：可编辑的插图点列表（生图前的确认层） -->
+      <section class="article-points panel" id="article-points-panel" hidden>
+        <div class="article-panel-head">
+          <h2 class="article-section-title">插图点（可编辑）</h2>
+          <button class="article-collapse-toggle" id="article-points-toggle" type="button" aria-expanded="true" aria-controls="article-points-body">收起 ▴</button>
+        </div>
+        <div class="article-panel-body" id="article-points-body">
+          <p class="article-points-tip" id="article-points-tip">每张图对应文章一部分的核心内容。可以直接修改提示词、删除不想要的点，确认无误后再开始生图。</p>
+          <div id="article-points" class="article-points-list" aria-label="插图点列表"></div>
+          <div class="article-points-footer">
+            <button class="ghost-button" id="article-add-point" type="button">+ 补充一张</button>
+            <button class="primary-button" id="article-generate" type="button">开始生图</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 生成结果：图文对照卡片流 -->
+      <section class="article-results panel" id="article-results-panel" hidden>
+        <div class="article-panel-head">
+          <h2 class="article-section-title">生成结果</h2>
+          <div class="article-head-actions">
+            <button class="ghost-button" id="article-download-all" type="button" hidden>下载全部</button>
+            <button class="article-collapse-toggle" id="article-results-toggle" type="button" aria-expanded="true" aria-controls="article-results-body">收起 ▴</button>
+          </div>
+        </div>
+        <div class="article-panel-body" id="article-results-body">
+          <div id="article-results" class="article-results-grid" aria-label="配图结果"></div>
+        </div>
+      </section>
+    </div>
+
+    <!-- mammoth.js：浏览器端解析 .docx（本地打包，无需联网） -->
+    <script src="./libs/mammoth.browser.min.js"></script>
+    <script src="./app-config.js"></script>
+    <script src="./app-utils.js"></script>
+    <script src="./article.js"></script>
+    <script src="./app-nav.js"></script>
+  </body>
+</html>

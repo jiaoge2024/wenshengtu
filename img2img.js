@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 图生图工作台（v2.1 三模式 + 断点续跑）
  *
  * 功能模式：
@@ -210,7 +210,7 @@
         dataUrl: compressed.dataUrl, width: compressed.width, height: compressed.height
       });
       renderMultiPreview();
-      showStatus("已添加 " + state.images.length + " / " + maxImages + " 张图片。", false);
+      showDoneStatus("" + state.images.length + " / " + maxImages + " 张图片。", false);
       syncControls();
     };
     img.onerror = function () {
@@ -773,9 +773,19 @@
         removeImage(state.images.length - 1);
       }
       addImage(file);
-      // 回到顶部，方便输入新的修改要求
+      // 回到顶部并聚焦修改要求输入框（高亮闪烁提示输入位置），减少迭代时的寻找成本
       window.scrollTo({ top: 0, behavior: "smooth" });
-      showStatus("已把「新图 " + (index + 1) + "」设为原图，请输入新的修改要求后点「开始修改」。", false);
+      var reqPanel = document.getElementById("i2i-req-panel");
+      var focusReq = function () {
+        if (!elements.extraReq) return;
+        elements.extraReq.focus({ preventScroll: true });
+        if (reqPanel) {
+          reqPanel.classList.add("i2i-flash");
+          setTimeout(function () { reqPanel.classList.remove("i2i-flash"); }, 1600);
+        }
+      };
+      setTimeout(focusReq, 350);
+      showDoneStatus("已把「新图 " + (index + 1) + "」设为原图，请输入新的修改要求后点「开始修改」。", false);
     } catch (error) {
       console.error("[img2img] 继续编辑失败", error);
       showStatus("继续编辑失败：" + (error && error.message ? error.message : "无法获取图片，可下载后手动上传。"), true);
@@ -876,6 +886,15 @@
         promptToggle.setAttribute("aria-expanded", String(willShow));
       });
 
+      // 源图静态模糊底图（LQIP）：有已上传源图时作为占位底，
+      // 断点恢复后 state.images 为空则保持隐藏，降级为占位卡自带渐变
+      var lqip = node.querySelector(".gen-lqip");
+      var firstSource = state.images && state.images[0];
+      if (lqip && firstSource && firstSource.fileUrl) {
+        lqip.style.backgroundImage = 'url("' + firstSource.fileUrl + '")';
+        lqip.hidden = false;
+      }
+
       elements.resultsGrid.appendChild(node);
       cardRefs.push({
         card: node.querySelector(".i2i-result-card"), img: img, spinner: spinner,
@@ -892,8 +911,11 @@
     var result = state.results[index];
     if (!refs || !result) return;
     if (result.status === "done" && result.imageUrls && result.imageUrls[0]) {
+      var wasHidden = refs.img.hidden;
       refs.img.src = result.imageUrls[0];
       refs.img.hidden = false;
+      // 由占位切换为真图时播放「模糊→清晰」淡入；已是完成态的重渲染不重播
+      refs.img.classList.toggle("gen-blur-reveal-img", wasHidden);
       refs.placeholder.style.display = "none";
       refs.regenButton.disabled = false;
       refs.downloadButton.disabled = false;
@@ -907,12 +929,15 @@
     }
     refs.img.hidden = true;
     refs.img.removeAttribute("src");
+    // 移除旧动画类，保证下次完成时「模糊→清晰」动画能重新触发
+    refs.img.classList.remove("gen-blur-reveal-img");
     refs.placeholder.style.display = "";
     refs.editAgainButton.hidden = true;
     refs.elapsed.textContent = (result.startedAt && result.elapsedMs != null)
       ? "用时 " + formatDuration(result.elapsedMs) : "";
     var isError = result.status === "error" || result.status === "stopped";
     refs.placeholder.classList.toggle("is-error", isError);
+    refs.placeholder.classList.toggle("is-running", result.status === "running" || result.status === "pending");
     refs.spinner.hidden = result.status !== "running";
     if (result.status === "running") {
       // 生成中：进度文本后实时拼接已用时（由秒级定时器驱动刷新）
@@ -962,7 +987,7 @@
       endResultTiming(result);
       syncResultCard(index);
       saveResultToGallery(result, index, channel, regenAspect);
-      showStatus("新图 " + (index + 1) + " 已重新生成，用时 " + formatDuration(result.elapsedMs) + "。", false);
+      showDoneStatus("" + formatDuration(result.elapsedMs) + "。", false);
     } catch (error) {
       if ((error && error.name === "AbortError") || state.stopRequested) {
         result.status = "stopped";
@@ -1035,7 +1060,7 @@
     syncControls();
 
     if (mode.value === "extract") {
-      showStatus("正在调用视觉模型提取提示词...", false);
+      showRunStatus("调用视觉模型提取提示词...", false);
       var extractStartedAt = Date.now();
       try {
         var parsed = await runVisionExtract(signal);
@@ -1044,7 +1069,7 @@
         }
         state.extract = parsed;
         renderExtractResult(parsed);
-        showStatus("提取完成：中文与英文提示词均已生成，可分别复制使用。（用时 " + formatDuration(Date.now() - extractStartedAt) + "）", false);
+        showDoneStatus("提取完成：中文与英文提示词均已生成，可分别复制使用。（用时 " + formatDuration(Date.now() - extractStartedAt) + "）", false);
       } catch (err) {
         if (err && err.name === "AbortError") {
           showStatus("已停止。", false);
@@ -1131,7 +1156,7 @@
   /** 编辑模式：视觉模型根据原图与修改要求改写提示词 → 逐张生成 */
   async function runFallbackEdit(channel, quality, aspect, signal, count) {
     var flowStartedAt = Date.now();
-    showStatus("正在通过视觉模型理解图片与修改要求...", false);
+    showRunStatus("通过视觉模型理解图片与修改要求...", false);
     state.checkpoint.step = "editing-fallback";
     saveCheckpoint();
 
@@ -1143,7 +1168,7 @@
       var r = state.results[j];
       if (r.status === "error" || r.status === "stopped" || r.status === "pending") {
         // 状态栏实时更新：提示词就绪 + 当前进度
-        showStatus("提示词已就绪，正在生成新图 " + (j + 1) + " / " + count + "...", false);
+        showRunStatus("" + (j + 1) + " / " + count + "...", false);
         r.status = "running";
         r.error = "";
         r.prompt = prompt;
@@ -1153,14 +1178,14 @@
           var fallbackUrls = await generateWithRetry(channel, prompt, aspect, quality, signal, function (text) {
             r.progress = text; syncResultCard(j);
             // 状态栏同步实时进度（含已用时）
-            showStatus("新图 " + (j + 1) + " / " + count + "：" + text, false);
+            showRunStatus("" + text, false);
           }, "新图 " + (j + 1) + "/" + count);
           r.imageUrls = fallbackUrls;
           r.status = "done";
           endResultTiming(r);
           syncResultCard(j);
           saveResultToGallery(r, j, channel, aspect);
-          showStatus("新图 " + (j + 1) + " / " + count + " 完成，用时 " + formatDuration(r.elapsedMs) + "。", false);
+          showDoneStatus("" + formatDuration(r.elapsedMs) + "。", false);
 
           state.checkpoint.completedIndex = j + 1;
           state.checkpoint.results = state.results.map(function (rr) {
@@ -1179,19 +1204,19 @@
       }
     }
     clearCheckpoint();
-    showStatus("全部完成：成功 " + count + " 张，总用时 " + formatDuration(Date.now() - flowStartedAt) + "。可编辑新图下方提示词后「重新生成」，或点「继续编辑」再次改图。", false);
+    showDoneStatus("全部完成：成功 " + count + " 张，总用时 " + formatDuration(Date.now() - flowStartedAt) + "。可编辑新图下方提示词后「重新生成」，或点「继续编辑」再次改图。", false);
   }
 
   /** 合成模式执行流程 */
   async function runComposeFlow(channel, quality, aspect, signal, count) {
-    showStatus("正在调用视觉模型理解图片与合成要求...", false);
+    showRunStatus("调用视觉模型理解图片与合成要求...", false);
     var composeResult = await runVisionEdit(currentMode(), signal);
     var composePrompt = composeResult.promptZh;
 
     state.checkpoint.step = "composing-generating";
     saveCheckpoint();
 
-    showStatus("AI 已理解合成要求，开始生成...");
+    showRunStatus("开始生成合成新图...");
     for (var m = 0; m < count; m++) {
       checkAborted(signal);
       var cr = state.results[m];
@@ -1209,7 +1234,7 @@
         endResultTiming(cr);
         syncResultCard(m);
         saveResultToGallery(cr, m, channel, aspect);
-        showStatus(clabel + " 完成，用时 " + formatDuration(cr.elapsedMs) + "。", false);
+        showDoneStatus(clabel + " 完成，用时 " + formatDuration(cr.elapsedMs) + "。", false);
 
         state.checkpoint.completedIndex = m + 1;
         state.checkpoint.results = state.results.map(function (rr) {
@@ -1227,7 +1252,7 @@
       if (m < count - 1) await abortableSleep(1000, signal);
     }
     clearCheckpoint();
-    showStatus("合成完成。", false);
+    showDoneStatus("全部完成：成功生成 " + count + " 张合成新图。可编辑新图下方提示词后「重新生成」，或点「继续编辑」再次调整。", false);
   }
 
   /** 从断点恢复执行 */
@@ -1260,7 +1285,7 @@
     state.abortController = new AbortController();
     var signal = state.abortController.signal;
     syncControls();
-    showStatus("从断点继续：已完成 " + cp.completedIndex + " / " + count + " 张...", false);
+    showRunStatus("已完成 " + cp.completedIndex + " / " + count + " 张...", false);
 
     try {
       for (var idx = cp.completedIndex; idx < count; idx++) {
@@ -1289,7 +1314,11 @@
           endResultTiming(result);
           syncResultCard(idx);
           saveResultToGallery(result, idx, channel, aspect);
-          showStatus(label + " 完成，用时 " + formatDuration(result.elapsedMs) + "。", false);
+          showDoneStatus(label + " 完成，用时 " + formatDuration(result.elapsedMs) + "。", false);
+          // 温馨小提示：每张生成成功后底部轻提示
+          if (typeof __APP.showToast === "function") {
+            __APP.showToast("✨ " + label + " 已生成（用时 " + formatDuration(result.elapsedMs) + "）");
+          }
 
           state.checkpoint.completedIndex = idx + 1;
           state.checkpoint.results = state.results.map(function (r) {
@@ -1307,7 +1336,7 @@
         if (idx < count - 1) await abortableSleep(1000, signal);
       }
       clearCheckpoint();
-      showStatus("全部完成。", false);
+      showDoneStatus("断点恢复完成：成功生成 " + count + " 张图。可编辑新图下方提示词后「重新生成」，或点「继续编辑」再次调整。", false);
     } catch (err) {
       if ((err && err.name === "AbortError") || state.stopRequested) {
         state.results.forEach(function (item) {
@@ -1334,7 +1363,33 @@
     }
   }
 
+  /** 「清空重来」的两步确认状态：第一次点击进入待确认，3 秒内再点才真正清空 */
+  var resetArmTimer = null;
+
   function resetAll() {
+    // 有内容（图片/结果/断点/要求）时需要两步确认，避免手滑丢失跑了几分钟的任务
+    var hasContent = state.images.length > 0
+      || state.results.length > 0
+      || !!state.checkpoint
+      || (elements.extraReq.value || "").trim().length > 0;
+    if (hasContent && !elements.resetButton.dataset.armed) {
+      elements.resetButton.dataset.armed = "1";
+      elements.resetButton.textContent = "确认清空？";
+      elements.resetButton.classList.add("is-armed");
+      clearTimeout(resetArmTimer);
+      resetArmTimer = setTimeout(function () {
+        delete elements.resetButton.dataset.armed;
+        elements.resetButton.textContent = "清空重来";
+        elements.resetButton.classList.remove("is-armed");
+      }, 3000);
+      showStatus("再点一次「确认清空？」才会清空全部内容（3 秒内有效）。", false);
+      return;
+    }
+    // 两步确认通过：还原按钮状态并执行清空
+    clearTimeout(resetArmTimer);
+    delete elements.resetButton.dataset.armed;
+    elements.resetButton.textContent = "清空重来";
+    elements.resetButton.classList.remove("is-armed");
     // 先中止正在进行的操作
     state.stopRequested = true;
     if (state.abortController) {
@@ -1357,10 +1412,44 @@
 
   // ==================== 界面同步 ====================
 
-  function showStatus(text, isError) {
+  /**
+   * 状态栏语义显示：成功绿 / 失败红 / 进行中琥珀（带旋转图标），并支持内嵌跳转按钮
+   * @param {string} text 状态文本
+   * @param {boolean} isError 是否为错误
+   * @param {Object} [opts] 可选 { running: 进行中, success: 成功, actionLabel/actionHref: 内嵌引导按钮 }
+   */
+  function showStatus(text, isError, opts) {
+    var options = opts || {};
     elements.status.hidden = false;
-    elements.status.textContent = text;
     elements.status.classList.toggle("is-error", Boolean(isError));
+    elements.status.classList.toggle("is-success", !isError && Boolean(options.success));
+    elements.status.classList.toggle("is-running", Boolean(options.running));
+    // 组装内容：进行中带旋转图标；错误提示中提到「设置页」时自动附带「去配置」跳转按钮
+    elements.status.textContent = "";
+    if (options.running) {
+      var spinner = document.createElement("span");
+      spinner.className = "status-spinner";
+      elements.status.appendChild(spinner);
+    }
+    elements.status.appendChild(document.createTextNode(text));
+    var needsConfigLink = Boolean(isError) && /设置页|请先配置|未配置/.test(text);
+    if (needsConfigLink || options.actionHref) {
+      var link = document.createElement("a");
+      link.className = "status-action-link";
+      link.href = options.actionHref || "settings.html";
+      link.textContent = options.actionLabel || "去配置 →";
+      elements.status.appendChild(link);
+    }
+  }
+
+  /** 进行中状态的快捷封装（琥珀色 + 旋转图标） */
+  function showRunStatus(text) {
+    showStatus(text, false, { running: true });
+  }
+
+  /** 成功状态的快捷封装（绿色） */
+  function showDoneStatus(text) {
+    showStatus(text, false, { success: true });
   }
 
   /**
@@ -1415,15 +1504,31 @@
 
   // ==================== 事件绑定 ====================
 
+  /**
+   * 初始化卡片折叠开关：点击标题条任意位置即可展开/收起，右侧的展开/收起按钮同样可用。
+   * 标题条内的其他功能按钮（如「复制全部」）不受影响，点击它们不会触发折叠。
+   * @param {string} toggleId 折叠按钮元素 ID
+   * @param {string} bodyId 折叠内容区元素 ID
+   */
   function initCollapseToggle(toggleId, bodyId) {
     var toggle = $(toggleId);
     var body = $(bodyId);
     if (!toggle || !body) return;
-    toggle.addEventListener("click", function () {
+    // 标题条 = 按钮所在的头部容器（包含标题文字 + 右侧按钮组）
+    var head = toggle.closest(".i2i-panel-head") || toggle.parentElement;
+
+    function applyToggle() {
       var willExpand = body.hidden;
       body.hidden = !willExpand;
       toggle.textContent = willExpand ? "收起 ▴" : "展开 ▾";
       toggle.setAttribute("aria-expanded", willExpand ? "true" : "false");
+    }
+
+    // 整个标题条都可点击：命中其他按钮（复制全部等）时保持其原功能，不触发折叠
+    head.addEventListener("click", function (event) {
+      var clickedButton = event.target.closest("button");
+      if (clickedButton && clickedButton !== toggle) return;
+      applyToggle();
     });
   }
 
@@ -1481,6 +1586,21 @@
     // 主按钮
     elements.runButton.addEventListener("click", startRun);
     elements.continueButton.addEventListener("click", startRun);
+    // 快捷键：Ctrl+Enter 开始/继续，Esc 停止（输入框内同样生效）
+    document.addEventListener("keydown", function (event) {
+      if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+        if (!state.running && !elements.runButton.disabled) {
+          event.preventDefault();
+          startRun();
+        }
+        return;
+      }
+      if (event.key === "Escape" && state.running) {
+        event.preventDefault();
+        state.stopRequested = true;
+        if (state.abortController) state.abortController.abort();
+      }
+    });
     elements.stopButton.addEventListener("click", function () {
       // 双保险：设置停止标志（循环内 checkAborted 可感知）+ 触发 abort 中断所有等待
       state.stopRequested = true;
@@ -1574,6 +1694,7 @@
       extraReq: $("i2i-extra-req"),
       reqPanel: $("i2i-req-panel"),
       reqLabel: $("i2i-req-label"),
+      clearReq: $("i2i-clear-req"),
       visionModel: $("i2i-vision-model"),
       imageModel: $("i2i-image-model"),
       imageQuality: $("i2i-image-quality"),
@@ -1607,6 +1728,13 @@
     renderLlmInfo();
     restoreDraft();
     syncModeUI();
+
+    // 描述要求：一键清空
+    if (elements.clearReq) {
+      elements.clearReq.addEventListener("click", function () {
+        elements.extraReq.value = "";
+      });
+    }
 
     // 恢复断点
     var savedCp = loadCheckpoint();

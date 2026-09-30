@@ -390,18 +390,35 @@ test("img2img styles cover multi-preview, extract result and mode cards", () => 
   assert.ok(css.includes("@keyframes i2i-spin"));
 });
 
-test("img2img entry links are present across all pages", () => {
-  const pages = ["index.html", "gallery.html", "prompts.html", "settings.html", "help.html", "xhs.html"];
+test("global rail navigation is wired into every page", () => {
+  const pages = ["index.html", "img2img.html", "gallery.html", "prompts.html", "settings.html", "help.html", "xhs.html"];
+  const nav = readProjectFile("app-nav.js");
   pages.forEach((page) => {
     const html = readProjectFile(page);
-    assert.ok(html.includes('href="./img2img.html"'), page + " 缺少图生图入口链接");
+    assert.ok(html.includes('href="./app-rail.css"'), page + " 缺少 app-rail.css");
+    assert.ok(html.includes('src="./app-nav.js"'), page + " 缺少 app-nav.js");
   });
-  // 图生图页面自身提供返回与跨板块导航
-  const self = readProjectFile("img2img.html");
-  assert.ok(self.includes('href="./index.html"'));
-  assert.ok(self.includes('href="./xhs.html"'));
-  assert.ok(self.includes('href="./gallery.html"'));
-  assert.ok(self.includes('href="./prompts.html"'));
+  // 侧边导航覆盖全部 7 个功能页
+  pages.forEach((page) => {
+    assert.ok(nav.includes(`page: "${page}"`), "app-nav.js 缺少导航项：" + page);
+  });
+});
+
+test("gallery supports auto tagging and tag search", () => {
+  const galleryJs = readProjectFile("gallery.js");
+  assert.ok(galleryJs.includes("autoTagRecords"), "gallery.js 缺少自动打标签队列");
+  assert.ok(galleryJs.includes("matchesSearch"), "gallery.js 缺少搜索匹配");
+
+  const galleryHtml = readProjectFile("gallery.html");
+  assert.ok(galleryHtml.includes('id="gallery-search"'), "gallery.html 缺少搜索框");
+  assert.ok(galleryHtml.includes('class="gallery-tags"'), "gallery.html 模板缺少标签容器");
+
+  const utils = readProjectFile("app-utils.js");
+  assert.ok(utils.includes("__APP.requestImageTags"), "app-utils.js 缺少打标签请求函数");
+  assert.ok(utils.includes("__APP.updateGalleryRecordTags"), "app-utils.js 缺少标签持久化函数");
+
+  const server = readProjectFile("server.js");
+  assert.ok(server.includes("/api/image-studio/update-tags"), "server.js 缺少标签更新接口");
 });
 
 test("README documents the img2img board", () => {

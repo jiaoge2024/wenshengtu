@@ -1,6 +1,12 @@
 (function () {
   const QUEUE_DELAY_MS = 3000; // 排队任务间隔时间（毫秒），防止频繁请求报错
 
+  // 服务端任务模式：通过 start.bat 启动时（http://）生图任务交给本地服务后台执行，
+  // 页面跳转/刷新不会中断；file:// 直开时无本地服务可用，回退为页面内直接生成
+  const SERVER_MODE = window.location.protocol !== "file:";
+  const SERVER_TASKS_URL = "/api/image-studio/generation-tasks";
+  const SERVER_POLL_INTERVAL_MS = 3000;
+
   const state = {
     history: loadHistory(),
     generating: false,
@@ -13,8 +19,19 @@
     templateQueue: null,    // 模板填充的生成队列（保留模板原文，改变量值可反复填充）
     currentAccount: null,
     generationQueue: [],   // 生图排队队列：每个元素为 { id, prompt, runConfig }
-    queueProcessing: false  // 是否正在处理排队队列
+    queueProcessing: false, // 是否正在处理排队队列
+    // ======== 服务端后台任务状态 ========
+    serverSubmitting: false,       // 正在向本地服务提交任务（该窗口内不允许离开页面）
+    serverWatchedTasks: {},        // taskId → true：本页面关注的服务端任务（含提交后等待与刷新恢复）
+    serverTaskMessages: {},        // taskId → 历史消息 id（提交时登记；恢复时按 serverTaskId 反查）
+    serverTaskBatchEntries: {},    // taskId → 批量队列条目（批量模式更新状态用）
+    serverTaskWaiters: {},         // taskId → 完成回调（executeServerPromptGeneration 的 Promise 落点）
+    serverPollTimer: null          // 轮询定时器句柄
   };
+
+  // 已播放过「模糊→清晰」淡入动画的消息 id（防止 renderMessages 全量重渲染时重复播放；
+  // 初始化时填入历史消息 id，避免页面加载时历史图片全部重播动画）
+  const revealedMessageIds = new Set(state.history.map(function (item) { return item.id; }));
 
   const elements = {
     controlDeck: document.getElementById("control-deck"),
@@ -132,7 +149,39 @@
         return [];
       }
       const parsed = JSON.parse(raw);
-      return Array.isArray(parsed) ? parsed : [];
+      if (!Array.isArray(parsed)) {
+        return [];
+      }
+      // 一次性迁移：历史版本文件名可能含 #（提示词主题未过滤），# 会让浏览器把
+      // URL 当作锚点截断导致图片 404。按服务端相同的清洗规则重写旧路径并回存
+      let migrated = false;
+      parsed.forEach((item) => {
+        // 迁移：残留的占位消息分两种情况——
+        // 1. 带 serverTaskId（任务已交给本地服务后台执行）：保留 pending，等恢复轮询回报结果
+        // 2. 无 serverTaskId（页面在提交前被刷新/旧版本历史）：标记为已中断
+        if (item && item.pending) {
+          if (!(SERVER_MODE && item.serverTaskId)) {
+            item.pending = false;
+            item.failed = true;
+            item.text = "生成已中断：页面在生成完成前被刷新。";
+            migrated = true;
+          }
+        }
+        if (!Array.isArray(item.images)) {
+          return;
+        }
+        item.images = item.images.map((src) => {
+          if (typeof src !== "string" || src.indexOf("#") === -1 || src.indexOf("data:") === 0 || /^https?:\/\//i.test(src)) {
+            return src;
+          }
+          migrated = true;
+          return src.replace(/#/g, "").replace(/\s+/g, " ").trim();
+        });
+      });
+      if (migrated) {
+        try { window.localStorage.setItem(__APP.STORAGE_KEYS.history, JSON.stringify(parsed)); } catch (e) { /* ignore */ }
+      }
+      return parsed;
     } catch (error) {
       return [];
     }
@@ -664,6 +713,15 @@
     }
   }
 
+  /** 将 "3:4" 形式的比例字符串转换为 CSS aspect-ratio 值（如 "3 / 4"），非法时回退 "1 / 1" */
+  function aspectRatioToCss(value) {
+    var match = /^(\d+)\s*:\s*(\d+)$/.exec(String(value || ""));
+    if (!match || Number(match[1]) <= 0 || Number(match[2]) <= 0) {
+      return "1 / 1";
+    }
+    return match[1] + " / " + match[2];
+  }
+
   function renderMessages() {
     elements.messageList.innerHTML = "";
 
@@ -685,24 +743,62 @@
       if (!tags.children.length) {
         tags.remove();
       }
-      text.textContent = message.text || (message.role === "assistant" ? "图片已生成。" : "");
+      // 生成中的占位消息不再重复显示文字，状态由占位卡内的 spinner 呈现
+      text.textContent = message.pending ? "" : (message.text || (message.role === "assistant" ? "图片已生成。" : ""));
+      if (message.failed && message.errorLabel) {
+        var diagnosis = document.createElement("div");
+        diagnosis.className = "generation-diagnosis is-" + (message.errorCategory || "unknown");
+        var diagnosisTitle = document.createElement("strong");
+        diagnosisTitle.textContent = message.errorLabel;
+        var diagnosisAction = document.createElement("span");
+        diagnosisAction.textContent = message.errorAction || "请先到设置页测试当前通道，再尝试重新生成。";
+        diagnosis.append(diagnosisTitle, diagnosisAction);
+        text.after(diagnosis);
+      }
 
-      if (Array.isArray(message.images) && message.images.length > 0) {
+      // 生成中的占位消息：按张数渲染静态模糊占位卡（模拟 Blur-up 效果）
+      if (message.pending) {
+        var pendingCount = Math.max(1, Number(message.imageCount) || 1);
+        for (var phIndex = 0; phIndex < pendingCount; phIndex += 1) {
+          var phWrapper = document.createElement("div");
+          phWrapper.className = "image-wrapper";
+          var placeholder = document.createElement("div");
+          placeholder.className = "gen-blur-placeholder";
+          // 按消息记录的尺寸比例撑高占位卡
+          placeholder.style.aspectRatio = aspectRatioToCss(message.aspectRatio);
+          var placeholderText = document.createElement("span");
+          placeholderText.className = "gen-status-text";
+          placeholderText.innerHTML = '<i class="status-spinner"></i>正在生成图片...';
+          placeholder.appendChild(placeholderText);
+          phWrapper.appendChild(placeholder);
+          gallery.appendChild(phWrapper);
+        }
+        if (pendingCount >= 2) {
+          gallery.classList.add("image-gallery--grid");
+        }
+      } else if (Array.isArray(message.images) && message.images.length > 0) {
         message.images.forEach(function (src, index) {
           var wrapper = document.createElement("div");
           wrapper.className = "image-wrapper";
 
+          var safeSrc = __APP.safeImageUrl ? __APP.safeImageUrl(src) : src;
           var image = document.createElement("img");
-          image.src = src;
+          image.src = safeSrc;
           image.alt = (message.rawPrompt || message.prompt || "生成图片") + " " + (index + 1);
+          // 本条消息首次渲染出真图时播放「模糊→清晰」淡入
+          if (!revealedMessageIds.has(message.id)) {
+            image.classList.add("gen-blur-reveal-img");
+          }
           image.addEventListener("click", function () {
-            openPreviewLightbox(src, image.alt);
+            openPreviewLightbox(safeSrc, image.alt);
           });
 
           wrapper.append(image);
 
           gallery.appendChild(wrapper);
         });
+        // 记录为已播放，后续全量重渲染不再重播动画
+        revealedMessageIds.add(message.id);
         // 多图时使用网格布局并排展示
         if (message.images.length >= 2) {
           gallery.classList.add("image-gallery--grid");
@@ -1168,6 +1264,21 @@ return "生图通道";
       return;
     }
     state.abortController.abort();
+    // 服务端模式：通知本地服务取消全部后台任务（含排队中的），状态由轮询回报
+    if (SERVER_MODE) {
+      cancelAllServerTasks().then(function (cancelledIds) {
+        state.generationQueue = [];
+        renderQueueStatus();
+        if (elements.stopGenerateButton) {
+          elements.stopGenerateButton.disabled = true;
+          flashButton(elements.stopGenerateButton, "停止中…", "is-loading", 1200);
+        }
+        setStatus("停止中", cancelledIds.length > 0
+          ? "已向本地服务发出停止指令（" + cancelledIds.length + " 个任务），正在等待任务退出..."
+          : "没有可停止的后台任务。");
+      });
+      return;
+    }
     // 清空排队队列
     var clearedCount = state.generationQueue.length;
     state.generationQueue = [];
@@ -1185,9 +1296,44 @@ return "生图通道";
     renderQueueStatus();
   }
 
+  // 洗牌袋状态：场景/风格/构图各自维护一个"抽完再重洗"的队列，
+  // 保证一轮周期内绝不重复，避免纯随机的短期扎堆（生日悖论效应）
+  var randomPromptBags = { subjects: [], styles: [], compositions: [] };
+
+  /**
+   * 从洗牌袋中无放回地抽取一项；袋子空了就用 Fisher-Yates 算法重洗一批
+   * @param {string} kind 袋子名称：subjects / styles / compositions
+   * @param {Array} pool 对应的候选池
+   * @returns {*} 抽出的候选项
+   */
+  function drawFromRandomBag(kind, pool) {
+    if (!randomPromptBags[kind] || !randomPromptBags[kind].length) {
+      randomPromptBags[kind] = pool.slice();
+      for (var i = randomPromptBags[kind].length - 1; i > 0; i--) {
+        var j = Math.floor(Math.random() * (i + 1));
+        var tmp = randomPromptBags[kind][i];
+        randomPromptBags[kind][i] = randomPromptBags[kind][j];
+        randomPromptBags[kind][j] = tmp;
+      }
+    }
+    return randomPromptBags[kind].pop();
+  }
+
+  /**
+   * 按模板组合公式随机生成一条提示词（参考 OpenAI 官方结构化提示建议）
+   * 公式：主体场景 + 媒介风格 + 镜头构图 + 光线氛围（场景策展）+ 质量收尾
+   * 场景、风格、构图均走洗牌袋：每 40/14/9 次抽取保证各自全部出现一遍
+   * @returns {{title: string, prompt: string}} title 为「场景 · 风格」名，prompt 为完整提示词
+   */
   function getRandomImagePrompt() {
-    var index = Math.floor(Math.random() * __APP.RANDOM_IMAGE_PROMPTS.length);
-    return __APP.RANDOM_IMAGE_PROMPTS[index];
+    var subject = drawFromRandomBag("subjects", __APP.RANDOM_SUBJECTS);
+    var style = drawFromRandomBag("styles", __APP.RANDOM_STYLES);
+    var composition = drawFromRandomBag("compositions", __APP.RANDOM_COMPOSITIONS);
+    // 光线只从该场景策展过的候选中抽取，保证光线与环境永远合理
+    var lightingId = subject.atmos[Math.floor(Math.random() * subject.atmos.length)];
+    var lighting = __APP.RANDOM_LIGHTINGS[lightingId];
+    var prompt = subject.subject + "。" + style.phrase + "，" + composition + "，" + lighting + "。" + style.tail;
+    return { title: subject.title + " · " + style.label, prompt: prompt };
   }
 
   function startRandomGeneration() {
@@ -1202,7 +1348,7 @@ return "生图通道";
     if (elements.randomGenerateButton) {
       flashButton(elements.randomGenerateButton, "已选「" + preset.title + "」", "", 1400);
     }
-    setStatus("随机生图", "已生成提示词：" + preset.title + "，可点击「开始创作」或「加入排队」。");
+    setStatus("随机生图", "已生成提示词：" + preset.title + "（组合池约 " + __APP.RANDOM_PROMPT_COMBINATION_COUNT.toLocaleString() + " 种），可点击「开始创作」或「加入排队」。");
   }
 
   function clearSinglePrompt() {
@@ -1427,6 +1573,66 @@ return "生图通道";
       return new Error(context + "失败：无法连接到 " + endpoint + "。(" + message + ") " + hint);
     }
     return new Error(context + "失败：" + message + " (请求地址：" + endpoint + ")");
+  }
+
+  /**
+   * 将通道错误归类为提示词、通道配置或服务运行问题，并给出下一步建议。
+   * 保留原始错误，方便用户和开发者继续排查，而不是只显示笼统的“生成失败”。
+   * @param {Error} error 生图请求抛出的错误
+   * @returns {{category: string, label: string, detail: string, action: string, message: string}}
+   */
+  function diagnoseGenerationError(error) {
+    var detail = error && error.message ? String(error.message) : "未知错误";
+    var lower = detail.toLowerCase();
+    var statusMatch = detail.match(/HTTP\s*(\d{3})|请求失败[（(](\d{3})[）)]/i);
+    var status = statusMatch ? Number(statusMatch[1] || statusMatch[2]) : 0;
+    var isNetwork = /failed to fetch|fetch failed|networkerror|network error|无法连接|cors|dns|证书|econnrefused|enotfound|eai_again|timeout|超时/i.test(detail);
+    var isAuth = /api.?key|密钥|unauthorized|forbidden|未授权|权限|401|403|authentication|认证/i.test(lower);
+    var isEndpoint = /base url|endpoint|模型不存在|model not found|not found|404|images\/generations/i.test(lower);
+    var isPrompt = /prompt|提示词|content policy|内容政策|safety|安全策略|moderation|审核|invalid.*(prompt|input)|输入内容|敏感/i.test(lower);
+    var result;
+
+    if (isNetwork) {
+      result = {
+        category: "channel",
+        label: "通道连接问题",
+        action: "检查 Base URL、网络、跨域设置和本地代理；也可以先到设置页测试该通道。"
+      };
+    } else if (isAuth || status === 401 || status === 403) {
+      result = {
+        category: "channel",
+        label: "通道认证或权限问题",
+        action: "检查 API Key 是否正确、是否过期，以及当前 Key 是否有该模型的生图权限。"
+      };
+    } else if (isEndpoint || status === 404) {
+      result = {
+        category: "channel",
+        label: "通道地址或模型问题",
+        action: "检查 Base URL 是否正确、模型名是否存在，并在设置页重新测试通道。"
+      };
+    } else if (isPrompt || status === 400 || status === 422) {
+      result = {
+        category: "prompt",
+        label: "提示词或生成参数问题",
+        action: "先删减提示词中的敏感或冲突描述，并尝试切换尺寸、质量或模型；若仍失败，再测试通道。"
+      };
+    } else if (status === 429 || status >= 500 || /rate.?limit|quota|限流|额度|server|服务端/i.test(lower)) {
+      result = {
+        category: "service",
+        label: "服务暂时不可用",
+        action: "稍后重试或检查服务商额度、限流和运行状态；提示词本身通常没有问题。"
+      };
+    } else {
+      result = {
+        category: "unknown",
+        label: "暂时无法判断",
+        action: "先在设置页测试当前通道；如果通道测试成功，再尝试简化提示词和切换参数。"
+      };
+    }
+
+    result.detail = detail;
+    result.message = result.label + "：" + result.action + " 原始信息：" + detail;
+    return result;
   }
 
   /**
@@ -1719,7 +1925,513 @@ return "生图通道";
     renderHistorySummary();
   }
 
-  async function executePromptGeneration(rawPrompt, runConfig, options) {
+  // ==================== 服务端后台生图任务 ====================
+  // 生图任务的执行在本地服务（server.js）中完成：页面只负责提交任务与轮询进度。
+  // 跳转页面、刷新甚至关闭标签页都不会中断任务；回到创作台后自动恢复展示。
+
+  function isTerminalTaskStatus(status) {
+    return ["succeeded", "failed", "cancelled"].indexOf(status) !== -1;
+  }
+
+  /**
+   * 组装一个服务端生图任务描述（解析通道、构建最终提示词）
+   * @param {string} rawPrompt 用户提示词
+   * @param {Object} runConfig 生成配置
+   * @param {Object} options { topic }
+   * @returns {Object} 任务 payload
+   */
+  function buildGenerationJob(rawPrompt, runConfig, options) {
+    var resolved = __APP.resolveImageChannel(runConfig.model);
+    if (!resolved) {
+      throw new Error("当前模型没有可用的生图通道。请先到设置页启用或配置对应通道。");
+    }
+    var ch = resolved.channel;
+    if (!(ch.apiKey || "").trim()) {
+      throw new Error("通道「" + ch.name + "」的 API Key 为空，请先在设置页填写。");
+    }
+    return {
+      id: __APP.createId(),
+      rawPrompt: rawPrompt || "",
+      finalPrompt: __APP.buildPrompt(rawPrompt, runConfig.styleTemplateId),
+      topic: (options && options.topic) || "",
+      model: runConfig.model,
+      channel: {
+        type: ch.type,
+        name: ch.name,
+        baseUrl: ch.baseUrl,
+        apiKey: ch.apiKey,
+        model: resolved.model,
+        mode: ch.mode || "auto"
+      },
+      aspectRatio: runConfig.aspectRatio,
+      imageQuality: runConfig.imageQuality,
+      imageQualityLabel: runConfig.imageQualityLabel,
+      styleTemplateId: runConfig.styleTemplateId,
+      styleTemplateLabel: runConfig.styleTemplateLabel,
+      mode: runConfig.mode,
+      modeLabel: runConfig.modeLabel,
+      imageCount: Number(runConfig.imageCount) || 1,
+      mediaType: runConfig.mediaType || ""
+    };
+  }
+
+  /**
+   * 按 serverTaskId 在历史中定位消息下标（刷新恢复时 serverTaskMessages 映射已丢失，需要反查）
+   * @param {string} taskId 服务端任务 ID
+   * @returns {number} 消息下标，未找到返回 -1
+   */
+  function findHistoryIndexByServerTaskId(taskId) {
+    for (var i = state.history.length - 1; i >= 0; i -= 1) {
+      if (state.history[i] && state.history[i].serverTaskId === taskId) {
+        return i;
+      }
+    }
+    return -1;
+  }
+
+  /**
+   * 把服务端任务的一次失败同步落回历史占位消息（提交阶段失败等即时失败场景）
+   */
+  function markServerMessageFailed(pendingMessageId, displayPrompt, runConfig, error) {
+    var diagnosis = diagnoseGenerationError(error);
+    var index = state.history.findIndex(function (item) { return item.id === pendingMessageId; });
+    if (index >= 0) {
+      state.history[index] = {
+        id: pendingMessageId,
+        role: "assistant",
+        text: "创作失败｜" + diagnosis.message,
+        images: [],
+        failed: true,
+        errorCategory: diagnosis.category,
+        errorLabel: diagnosis.label,
+        errorAction: diagnosis.action,
+        prompt: displayPrompt,
+        rawPrompt: displayPrompt,
+        aspectRatio: runConfig.aspectRatio,
+        imageQuality: runConfig.imageQuality,
+        imageQualityLabel: runConfig.imageQualityLabel,
+        styleTemplateId: runConfig.styleTemplateId,
+        styleTemplateLabel: runConfig.styleTemplateLabel,
+        model: runConfig.model,
+        mode: runConfig.mode,
+        modeLabel: runConfig.modeLabel,
+        time: Date.now()
+      };
+    }
+    trimHistoryAndRefresh();
+    return { status: "error", error: error, diagnosis: diagnosis };
+  }
+
+  /**
+   * 将已到达终态的服务端任务结果写回历史消息与批量队列
+   * @param {Object} task 服务端任务快照（已脱敏）
+   * @returns {Object} outcome（与本地生成 outcome 结构一致）
+   */
+  function applyServerTaskResult(task) {
+    var index = -1;
+    var messageId = state.serverTaskMessages[task.id] || "";
+    if (messageId) {
+      index = state.history.findIndex(function (item) { return item.id === messageId; });
+    }
+    if (index < 0) {
+      index = findHistoryIndexByServerTaskId(task.id);
+    }
+
+    var outcome;
+    if (task.status === "succeeded") {
+      var generationDurationSeconds = Number(task.generationDurationSeconds) || 0;
+      var saveWarning = task.saveWarning || "";
+      if (Array.isArray(task.partialFailures) && task.partialFailures.length > 0) {
+        saveWarning += "\n其中 " + task.partialFailures.length + " 张生成失败：" + task.partialFailures[0];
+      }
+      var persistedRecord = task.record || {
+        id: task.id,
+        prompt: task.finalPrompt,
+        rawPrompt: task.rawPrompt,
+        images: Array.isArray(task.images) ? task.images : [],
+        aspectRatio: task.aspectRatio,
+        imageQuality: task.imageQuality,
+        imageQualityLabel: task.imageQualityLabel,
+        styleTemplateId: task.styleTemplateId,
+        styleTemplateLabel: task.styleTemplateLabel,
+        model: task.model,
+        mode: task.mode,
+        modeLabel: task.modeLabel,
+        time: task.finishedAt || Date.now(),
+        generationDurationSeconds: generationDurationSeconds
+      };
+      if (index >= 0) {
+        var prev = state.history[index];
+        state.history[index] = {
+          id: prev.id,
+          role: "assistant",
+          text: "已使用 " + task.channelLabel + " · " + (task.imageQualityLabel || task.imageQuality) + " 完成图片生成，共 " + persistedRecord.images.length + " 张图片。 耗时：" + __APP.formatDurationSeconds(generationDurationSeconds) + saveWarning,
+          images: persistedRecord.images,
+          prompt: persistedRecord.prompt,
+          rawPrompt: persistedRecord.rawPrompt || prev.rawPrompt,
+          aspectRatio: persistedRecord.aspectRatio || prev.aspectRatio,
+          imageQuality: persistedRecord.imageQuality || prev.imageQuality,
+          imageQualityLabel: persistedRecord.imageQualityLabel || prev.imageQualityLabel,
+          styleTemplateId: persistedRecord.styleTemplateId || prev.styleTemplateId,
+          styleTemplateLabel: persistedRecord.styleTemplateLabel || prev.styleTemplateLabel,
+          model: persistedRecord.model || prev.model,
+          mode: persistedRecord.mode || prev.mode,
+          modeLabel: persistedRecord.modeLabel || prev.modeLabel,
+          imageCount: persistedRecord.imageCount || prev.imageCount,
+          mediaType: persistedRecord.mediaType || prev.mediaType || "",
+          time: persistedRecord.time,
+          generationDurationSeconds: generationDurationSeconds
+        };
+      }
+      outcome = {
+        status: Array.isArray(task.partialFailures) && task.partialFailures.length > 0 ? "partial" : "success",
+        persistedRecord: persistedRecord,
+        saveWarning: saveWarning,
+        generationDurationSeconds: generationDurationSeconds
+      };
+      // 温馨小提示：生图成功后底部轻提示（部分失败时改用提醒语气）
+      if (typeof __APP.showToast === "function") {
+        __APP.showToast(
+          outcome.status === "partial"
+            ? "⚠️ 图片已生成，但部分图片保存失败，请留意画廊状态"
+            : "✨ 图片已生成（" + persistedRecord.images.length + " 张 · 耗时 " + __APP.formatDurationSeconds(generationDurationSeconds) + "）"
+        );
+      }
+    } else if (task.status === "cancelled") {
+      if (index >= 0) {
+        var prevCancelled = state.history[index];
+        state.history[index] = Object.assign({}, prevCancelled, {
+          text: "已停止：本次生图已取消，没有写入图片库。",
+          pending: false
+        });
+      }
+      outcome = { status: "aborted", error: new Error("任务已取消") };
+    } else {
+      var error = new Error(task.error && task.error.message ? task.error.message : "生成失败");
+      var diagnosis = diagnoseGenerationError(error);
+      if (index >= 0) {
+        var prevFailed = state.history[index];
+        state.history[index] = Object.assign({}, prevFailed, {
+          text: "创作失败｜" + diagnosis.message,
+          pending: false,
+          failed: true,
+          errorCategory: diagnosis.category,
+          errorLabel: diagnosis.label,
+          errorAction: diagnosis.action
+        });
+      }
+      outcome = { status: "error", error: error, diagnosis: diagnosis };
+    }
+
+    // 同步批量队列条目状态
+    var batchEntry = state.serverTaskBatchEntries[task.id];
+    if (batchEntry) {
+      if (task.status === "succeeded") {
+        batchEntry.status = outcome.status === "partial" ? "success" : "success";
+        batchEntry.note = "已完成 · 耗时 " + __APP.formatDurationSeconds(outcome.generationDurationSeconds);
+      } else if (task.status === "cancelled") {
+        batchEntry.status = "stopped";
+        batchEntry.note = "当前任务已停止";
+      } else {
+        batchEntry.status = "error";
+        batchEntry.note = outcome.diagnosis
+          ? outcome.diagnosis.label + "：" + outcome.diagnosis.action
+          : outcome.error.message;
+      }
+    }
+
+    trimHistoryAndRefresh();
+    if (batchEntry) {
+      renderBatchQueue();
+    }
+    return outcome;
+  }
+
+  /** 当前仍在执行（非终态）的服务端任务数 */
+  function getActiveServerTaskIds() {
+    return Object.keys(state.serverWatchedTasks).filter(function (taskId) {
+      return state.serverWatchedTasks[taskId];
+    });
+  }
+
+  /** 启动服务端任务轮询（幂等）：有未完成任务时每 3 秒拉取一次状态 */
+  function ensureServerTaskPolling() {
+    if (state.serverPollTimer) {
+      return;
+    }
+    state.serverPollTimer = window.setInterval(function () {
+      pollServerTasksOnce().catch(function (error) {
+        console.error("[server-task] 轮询失败，将在下个周期重试", error);
+      });
+    }, SERVER_POLL_INTERVAL_MS);
+    // 立即拉一次，缩短感知延迟
+    pollServerTasksOnce().catch(function () { /* 忽略首次拉取失败 */ });
+  }
+
+  function stopServerTaskPolling() {
+    if (state.serverPollTimer) {
+      window.clearInterval(state.serverPollTimer);
+      state.serverPollTimer = null;
+    }
+  }
+
+  /**
+   * 拉取一次服务端任务状态，把终态任务写回历史与批量队列，并解决等待中的 Promise
+   * 任务在服务端任务表中消失（本地服务重启）时，标记为已中断
+   */
+  async function pollServerTasksOnce() {
+    if (getActiveServerTaskIds().length === 0) {
+      stopServerTaskPolling();
+      return;
+    }
+    var response = await fetch(SERVER_TASKS_URL, { method: "GET" });
+    var data = await response.json();
+    if (!response.ok || !data || !data.ok || !Array.isArray(data.tasks)) {
+      throw new Error("任务状态查询失败");
+    }
+
+    var taskMap = {};
+    data.tasks.forEach(function (task) { taskMap[task.id] = task; });
+    var stillActive = 0;
+    var finishedAny = false;
+
+    getActiveServerTaskIds().forEach(function (taskId) {
+      var task = taskMap[taskId];
+      if (!task) {
+        // 服务端找不到该任务：本地服务大概率重启过，任务丢失
+        state.serverWatchedTasks[taskId] = false;
+        finishedAny = true;
+        var missingTask = {
+          id: taskId,
+          status: "failed",
+          error: { message: "本地服务中找不到该任务（服务可能已重启），请重新生成。" }
+        };
+        finishWatchedTask(missingTask);
+        return;
+      }
+      if (!isTerminalTaskStatus(task.status)) {
+        stillActive += 1;
+        // 批量队列条目在任务开跑时标记为「进行中」
+        var entry = state.serverTaskBatchEntries[taskId];
+        if (entry && task.status === "running" && entry.status === "pending") {
+          entry.status = "running";
+          renderBatchQueue(entry.id);
+        }
+        return;
+      }
+      state.serverWatchedTasks[taskId] = false;
+      finishedAny = true;
+      finishWatchedTask(task);
+    });
+
+    if (finishedAny) {
+      // 清理已完结任务的映射，避免长期驻留内存
+      Object.keys(state.serverWatchedTasks).forEach(function (taskId) {
+        if (state.serverWatchedTasks[taskId] === false) {
+          delete state.serverWatchedTasks[taskId];
+          delete state.serverTaskMessages[taskId];
+          delete state.serverTaskBatchEntries[taskId];
+        }
+      });
+    }
+
+    if (stillActive === 0) {
+      stopServerTaskPolling();
+      // 全部服务端任务结束：如果页面仍处于生成会话（如刷新恢复场景），结束会话
+      if (state.generating && !state.serverSubmitting && state.generationQueue.length === 0 && !state.queueProcessing) {
+        finishGenerationSession();
+        setStatus("已完成", "后台生图任务已全部结束。");
+      }
+    }
+  }
+
+  /** 解决某个终态任务的等待者并更新历史/批量队列 */
+  function finishWatchedTask(task) {
+    var outcome = applyServerTaskResult(task);
+    var waiter = state.serverTaskWaiters[task.id];
+    delete state.serverTaskWaiters[task.id];
+    if (waiter) {
+      waiter(outcome);
+    }
+  }
+
+  /**
+   * 向本地服务提交一批生图任务
+   * @param {Object[]} jobs 任务描述数组
+   * @returns {Promise<Object[]>} 已创建任务的快照数组
+   */
+  async function submitGenerationJobs(jobs) {
+    state.serverSubmitting = true;
+    try {
+      var response = await fetch(SERVER_TASKS_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jobs: jobs })
+      });
+      var data = await response.json();
+      if (!response.ok || !data || !data.ok || !Array.isArray(data.tasks) || data.tasks.length === 0) {
+        throw new Error(data && data.error ? data.error : "任务提交失败");
+      }
+      return data.tasks;
+    } finally {
+      state.serverSubmitting = false;
+    }
+  }
+
+  /**
+   * 服务端任务版生成流程：创建占位消息 → 提交任务 → 等待轮询回报终态。
+   * 返回值结构与本地 executeLocalPromptGeneration 一致，调用方无需感知差异。
+   */
+  async function executeServerPromptGeneration(rawPrompt, runConfig, options) {
+    var clearPromptOnSuccess = options && options.clearPromptOnSuccess;
+    var displayPrompt = rawPrompt || "图片生成";
+    var userMessage = {
+      id: __APP.createId(),
+      role: "user",
+      text: displayPrompt,
+      images: [],
+      prompt: displayPrompt,
+      rawPrompt: displayPrompt,
+      aspectRatio: runConfig.aspectRatio,
+      imageQuality: runConfig.imageQuality,
+      imageQualityLabel: runConfig.imageQualityLabel,
+      styleTemplateId: runConfig.styleTemplateId,
+      styleTemplateLabel: runConfig.styleTemplateLabel,
+      model: runConfig.model,
+      mode: runConfig.mode,
+      modeLabel: runConfig.modeLabel,
+      imageCount: runConfig.imageCount,
+      mediaType: runConfig.mediaType || "",
+      time: Date.now()
+    };
+    var pendingMessage = {
+      id: __APP.createId(),
+      role: "assistant",
+      text: "正在生成图片，请稍等...",
+      pending: true,
+      images: [],
+      prompt: displayPrompt,
+      rawPrompt: displayPrompt,
+      aspectRatio: runConfig.aspectRatio,
+      imageQuality: runConfig.imageQuality,
+      imageQualityLabel: runConfig.imageQualityLabel,
+      styleTemplateId: runConfig.styleTemplateId,
+      styleTemplateLabel: runConfig.styleTemplateLabel,
+      model: runConfig.model,
+      mode: runConfig.mode,
+      modeLabel: runConfig.modeLabel,
+      imageCount: runConfig.imageCount,
+      mediaType: runConfig.mediaType || "",
+      serverTaskId: "",
+      time: Date.now()
+    };
+
+    state.history.push(userMessage, pendingMessage);
+    saveHistory();
+    renderMessages();
+    renderHistorySummary();
+
+    // 组装任务描述；通道缺失等即时错误直接落失败消息
+    var job;
+    try {
+      job = buildGenerationJob(rawPrompt, runConfig, options);
+    } catch (buildError) {
+      return markServerMessageFailed(pendingMessage.id, displayPrompt, runConfig, buildError);
+    }
+
+    // 提交到本地服务；提交成功后任务即脱离页面生命周期
+    var createdTasks;
+    try {
+      createdTasks = await submitGenerationJobs([job]);
+    } catch (submitError) {
+      return markServerMessageFailed(pendingMessage.id, displayPrompt, runConfig, submitError);
+    }
+
+    var task = createdTasks[0];
+    var taskId = task.id;
+    pendingMessage.serverTaskId = taskId;
+    var pendingIndex = state.history.findIndex(function (item) { return item.id === pendingMessage.id; });
+    if (pendingIndex >= 0) {
+      state.history[pendingIndex].serverTaskId = taskId;
+    }
+    state.serverWatchedTasks[taskId] = true;
+    state.serverTaskMessages[taskId] = pendingMessage.id;
+    if (options && options.batchEntry) {
+      state.serverTaskBatchEntries[taskId] = options.batchEntry;
+    }
+    saveHistory();
+    ensureServerTaskPolling();
+
+    if (clearPromptOnSuccess) {
+      elements.promptInput.value = "";
+      persistDraft();
+    }
+
+    // 等待轮询回报终态（页面刷新后由恢复逻辑接管，Promise 无人等待也无副作用）
+    return await new Promise(function (resolve) {
+      state.serverTaskWaiters[taskId] = resolve;
+    });
+  }
+
+  /**
+   * 刷新/跳转返回后恢复后台任务：找到历史中仍在等待的服务端任务并重新纳入轮询
+   */
+  function restoreServerTasks() {
+    if (!SERVER_MODE) {
+      return;
+    }
+    var restored = 0;
+    state.history.forEach(function (item) {
+      if (item && item.pending && item.serverTaskId && !state.serverWatchedTasks[item.serverTaskId]) {
+        state.serverWatchedTasks[item.serverTaskId] = true;
+        restored += 1;
+      }
+    });
+    if (restored > 0) {
+      ensureServerTaskPolling();
+      setStatus("恢复中", "检测到 " + restored + " 个后台生图任务正在执行，已恢复进度跟踪...");
+    }
+  }
+
+  /**
+   * 页面上是否还有「离开就会丢」的工作：
+   * file:// 模式的生成绑定在页面内；服务端模式只有提交瞬间不能离开
+   */
+  function hasPageBoundWork() {
+    if (state.serverSubmitting) {
+      return true;
+    }
+    return !SERVER_MODE && (state.generating || state.queueProcessing);
+  }
+
+  /** 取消全部仍在执行的服务端任务（停止按钮用） */
+  function cancelAllServerTasks() {
+    var ids = getActiveServerTaskIds();
+    if (ids.length === 0) {
+      return Promise.resolve([]);
+    }
+    return fetch(SERVER_TASKS_URL + "/cancel", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids: ids })
+    }).then(function (res) { return res.json(); }).then(function (data) {
+      return (data && Array.isArray(data.cancelledIds)) ? data.cancelledIds : [];
+    }).catch(function () {
+      return [];
+    });
+  }
+
+  /**
+   * 生图流程统一入口：服务端模式走后台任务，file:// 模式回退为页面内直接生成
+   */
+  function executePromptGeneration(rawPrompt, runConfig, options) {
+    if (SERVER_MODE) {
+      return executeServerPromptGeneration(rawPrompt, runConfig, options);
+    }
+    return executeLocalPromptGeneration(rawPrompt, runConfig, options);
+  }
+
+  async function executeLocalPromptGeneration(rawPrompt, runConfig, options) {
     var generationSignal = state.abortController ? state.abortController.signal : null;
     var clearPromptOnSuccess = options && options.clearPromptOnSuccess;
     // 文件名主题：批量模板生成时为「变量值组合」；普通生成不传，由服务端从提示词启发式提取
@@ -1750,6 +2462,7 @@ return "生图通道";
       id: __APP.createId(),
       role: "assistant",
       text: "正在生成图片，请稍等...",
+      pending: true,
       images: [],
       prompt: displayPrompt,
       rawPrompt: displayPrompt,
@@ -1871,6 +2584,14 @@ return "生图通道";
       }
 
       trimHistoryAndRefresh();
+      // 温馨小提示：生图成功后底部轻提示（file:// 直连模式）
+      if (typeof __APP.showToast === "function") {
+        __APP.showToast(
+          saveWarning
+            ? "⚠️ 图片已生成，但本地目录写入失败，已临时保存在浏览器"
+            : "✨ 图片已生成（" + persistedRecord.images.length + " 张 · 耗时 " + __APP.formatDurationSeconds(generationDurationSeconds) + "）"
+        );
+      }
       return {
         status: saveWarning ? "partial" : "success",
         persistedRecord: persistedRecord,
@@ -1879,6 +2600,7 @@ return "生图通道";
       };
     } catch (error) {
       var wasAborted = error && error.name === "AbortError";
+      var errorDiagnosis = wasAborted ? null : diagnoseGenerationError(error);
       var pendingIndex = state.history.findIndex(function (item) { return item.id === pendingMessage.id; });
       if (pendingIndex >= 0) {
         state.history[pendingIndex] = {
@@ -1886,9 +2608,12 @@ return "生图通道";
           role: "assistant",
           text: wasAborted
             ? "已停止：本次生图已取消，没有写入图片库。"
-            : "创作失败：" + error.message,
+            : "创作失败｜" + errorDiagnosis.message,
           images: [],
           failed: !wasAborted,
+          errorCategory: errorDiagnosis ? errorDiagnosis.category : "",
+          errorLabel: errorDiagnosis ? errorDiagnosis.label : "",
+          errorAction: errorDiagnosis ? errorDiagnosis.action : "", 
           prompt: displayPrompt,
           rawPrompt: displayPrompt,
           aspectRatio: runConfig.aspectRatio,
@@ -1906,7 +2631,8 @@ return "生图通道";
       trimHistoryAndRefresh();
       return {
         status: wasAborted ? "aborted" : "error",
-        error: error
+        error: error,
+        diagnosis: errorDiagnosis
       };
     }
   }
@@ -2147,6 +2873,45 @@ return "生图通道";
     beginGenerationSession();
     renderBatchQueue();
 
+    // 服务端任务模式：全部条目一次性提交给本地服务，由服务端按顺序串行执行；
+    // 页面跳转/刷新不影响执行，回到创作台后自动恢复进度展示
+    if (SERVER_MODE) {
+      var serverCompleted = 0;
+      var serverFailed = 0;
+      try {
+        var outcomes = await Promise.all(state.batchQueue.map(function (entry, entryIndex) {
+          entry.status = "pending";
+          entry.note = "已提交到后台 · 第 " + (entryIndex + 1) + " 位";
+          return executeServerPromptGeneration(entry.prompt, runConfig, {
+            clearPromptOnSuccess: false,
+            topic: state.batchVarsMap[entry.prompt] || "",
+            batchEntry: entry
+          }).then(function (outcome) {
+            if (outcome.status === "success" || outcome.status === "partial") {
+              serverCompleted += 1;
+            } else if (outcome.status === "aborted") {
+              serverFailed += 0; // 停止不算失败
+            } else {
+              serverFailed += 1;
+            }
+            return outcome;
+          });
+        }));
+        var stoppedCount = outcomes.filter(function (outcome) { return outcome.status === "aborted"; }).length;
+        if (stoppedCount > 0) {
+          setStatus("已停止", "批量生成已停止：完成 " + serverCompleted + " 条，停止 " + stoppedCount + " 条。");
+        } else {
+          setStatus("批量完成", "共完成 " + serverCompleted + " 条，失败 " + serverFailed + " 条。图片已写入本地图库，生成记录见对话区。");
+        }
+      } catch (batchError) {
+        setStatus("失败", batchError && batchError.message ? batchError.message : "批量生成失败");
+      } finally {
+        finishGenerationSession();
+        renderBatchQueue();
+      }
+      return;
+    }
+
     var completedCount = 0;
     var failedCount = 0;
 
@@ -2181,7 +2946,9 @@ return "生图通道";
           return;
         } else {
           entry.status = "error";
-          entry.note = outcome.error.message;
+          entry.note = outcome.diagnosis
+            ? outcome.diagnosis.label + "：" + outcome.diagnosis.action
+            : outcome.error.message;
           failedCount += 1;
         }
 
@@ -2384,15 +3151,19 @@ return "生图通道";
       }
     });
 
+    // 页面离开保护：只有「离开就会丢」的工作才拦截。
+    // 服务端模式下任务已交给本地服务后台执行，跳转/刷新不会中断生成
     window.addEventListener("beforeunload", function (event) {
-      if (state.generating) {
+      if (hasPageBoundWork()) {
         event.preventDefault();
       }
     });
     document.querySelectorAll(".nav-link, .ghost-link").forEach(function (link) {
       link.addEventListener("click", function (event) {
-        if (state.generating) {
-          var confirmed = window.confirm("正在生成图片中，离开后当前生成会被中断。确定离开吗？");
+        if (hasPageBoundWork()) {
+          var confirmed = window.confirm(SERVER_MODE
+            ? "正在向本地服务提交生图任务，离开可能导致本次提交失败。确定离开吗？"
+            : "正在生成图片中，离开后当前生成会被中断。确定离开吗？");
           if (!confirmed) {
             event.preventDefault();
           }
@@ -2784,6 +3555,10 @@ return "生图通道";
       state.currentAccount = storedAccount;
     }
     renderAccountUI();
+
+    // 恢复后台生图任务：页面跳转/刷新期间任务在本地服务中继续执行，
+    // 回到创作台后重新纳入轮询，完成后自动展示结果
+    restoreServerTasks();
   }
 
   init();

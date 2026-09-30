@@ -28,14 +28,30 @@ test("main page uses compact single-line product name", () => {
   assert.ok(styles.includes("white-space: nowrap;"));
 });
 
-test("random generation has thirty built-in prompts and submits through the existing composer", () => {
+test("random generation uses curated template combination and submits through the existing composer", () => {
   const config = readProjectFile("app-config.js");
   const script = readProjectFile("app.js");
-  const promptMatches = config.match(/title:\s*"/g) || [];
 
-  assert.strictEqual(promptMatches.length, 30);
-  assert.ok(script.includes("randomGenerateButton"));
+  // 模板组合系统四要素齐备，旧版 30 条随机池已移除
+  assert.ok(config.includes("__APP.RANDOM_SUBJECTS"));
+  assert.ok(config.includes("__APP.RANDOM_STYLES"));
+  assert.ok(config.includes("__APP.RANDOM_COMPOSITIONS"));
+  assert.ok(config.includes("__APP.RANDOM_LIGHTINGS"));
+  assert.ok(config.includes("__APP.RANDOM_PROMPT_COMBINATION_COUNT"));
+  assert.ok(!config.includes("RANDOM_IMAGE_PROMPTS"));
+
+  // 场景卡规模与策展字段：≥ 36 张卡，每张都带 atmos 光线候选
+  const subjectMatches = config.match(/title:\s*"[^"]+",\s*subject:/g) || [];
+  assert.ok(subjectMatches.length >= 36, "场景卡应不少于 36 张");
+  const atmosMissing = (config.match(/atmos:\s*\[/g) || []).length;
+  assert.strictEqual(atmosMissing, subjectMatches.length, "每张场景卡都必须有 atmos 光线候选");
+
+  // 组合生成器走场景+风格+构图+光线四层公式，且场景/风格/构图使用洗牌袋避免短期重复
   assert.ok(script.includes("function startRandomGeneration()"));
+  assert.ok(script.includes("function getRandomImagePrompt()"));
+  assert.ok(script.includes("drawFromRandomBag"));
+  assert.ok(script.includes("randomPromptBags"));
+  assert.ok(script.includes("__APP.RANDOM_PROMPT_COMBINATION_COUNT"));
   assert.ok(script.includes("elements.composer.requestSubmit()"));
 });
 

@@ -202,7 +202,7 @@
     setStep(3);
 
     try {
-      showStatus("从断点继续：还有 " + pendingCount + " 张未生成，接着出图...");
+      showRunStatus("还有 " + pendingCount + " 张未生成，接着出图...");
       await generateAllPages(channel, signal);
       finishRunCleanup();
     } catch (error) {
@@ -349,6 +349,10 @@
     elements.stylePrompt.value = style.prompt;
     elements.styleSave.textContent = "保存修改";
     elements.styleCancel.hidden = false;
+    updateStylePromptCount();
+    // 编辑时自动展开表单（与文章配图板块同款交互）
+    elements.styleForm.hidden = false;
+    elements.styleNew.textContent = "收起表单";
     elements.styleName.focus();
   }
 
@@ -359,6 +363,17 @@
     elements.stylePrompt.value = "";
     elements.styleSave.textContent = "保存自定义风格";
     elements.styleCancel.hidden = true;
+    updateStylePromptCount();
+    // 收起表单，恢复为「新建」按钮
+    elements.styleForm.hidden = true;
+    elements.styleNew.textContent = "＋ 新建自定义风格";
+  }
+
+  /** 更新风格描述字数实时统计（如 566/2000） */
+  function updateStylePromptCount() {
+    var counter = $("xhs-style-prompt-count");
+    if (!counter) return;
+    counter.textContent = elements.stylePrompt.value.length + "/2000";
   }
 
   /** 保存自定义风格：新增或更新，并写入 localStorage */
@@ -462,7 +477,7 @@
         return {
           id: "style-" + Date.now() + "-" + Math.random().toString(16).slice(2, 8),
           name: s.name.trim().slice(0, 30),
-          prompt: s.prompt.trim().slice(0, 600),
+          prompt: s.prompt.trim().slice(0, 2000),
           createdAt: Date.now()
         };
       });
@@ -528,6 +543,16 @@
   function bindStyleForm() {
     elements.styleSave.addEventListener("click", handleStyleSave);
     elements.styleCancel.addEventListener("click", resetStyleForm);
+    // 「新建自定义风格」开关：展开/收起表单（与文章配图板块同款交互）
+    elements.styleNew.addEventListener("click", function () {
+      var willOpen = elements.styleForm.hidden;
+      elements.styleForm.hidden = !willOpen;
+      elements.styleNew.textContent = willOpen ? "收起表单" : "＋ 新建自定义风格";
+      if (willOpen) elements.styleName.focus();
+    });
+    // 风格描述字数实时统计（如 566/2000）
+    elements.stylePrompt.addEventListener("input", updateStylePromptCount);
+    updateStylePromptCount();
     // 导出：直接下载 JSON 文件
     elements.styleExport.addEventListener("click", exportStyles);
     // 导入：通过隐藏的 file input 选择文件；重置 value 以便可选同名文件
@@ -694,11 +719,42 @@
 
   // ==================== 进度与状态展示 ====================
 
-  /** 更新状态文字；isError 为 true 时标红 */
-  function showStatus(text, isError) {
+  /**
+   * 状态栏语义显示：成功绿 / 失败红 / 进行中琥珀（带旋转图标），错误提及「设置页」时附「去配置」跳转
+   * @param {string} text 状态文本
+   * @param {boolean} isError 是否为错误
+   * @param {Object} [opts] 可选 { running: 进行中, success: 成功 }
+   */
+  function showStatus(text, isError, opts) {
+    var options = opts || {};
     elements.status.hidden = false;
-    elements.status.textContent = text;
     elements.status.classList.toggle("is-error", Boolean(isError));
+    elements.status.classList.toggle("is-success", !isError && Boolean(options.success));
+    elements.status.classList.toggle("is-running", Boolean(options.running));
+    elements.status.textContent = "";
+    if (options.running) {
+      var spinner = document.createElement("span");
+      spinner.className = "status-spinner";
+      elements.status.appendChild(spinner);
+    }
+    elements.status.appendChild(document.createTextNode(text));
+    if (isError && /设置页|请先配置|未配置/.test(text)) {
+      var link = document.createElement("a");
+      link.className = "status-action-link";
+      link.href = "settings.html";
+      link.textContent = "去配置 →";
+      elements.status.appendChild(link);
+    }
+  }
+
+  /** 进行中状态快捷封装（琥珀色 + 旋转图标） */
+  function showRunStatus(text) {
+    showStatus(text, false, { running: true });
+  }
+
+  /** 成功状态快捷封装（绿色） */
+  function showDoneStatus(text) {
+    showStatus(text, false, { success: true });
   }
 
   /** 更新步骤条高亮（1 策划大纲 / 2 生成提示词 / 3 逐张出图） */
@@ -1367,18 +1423,26 @@
     refs.spinner.hidden = !busy;
     refs.placeholder.classList.toggle("is-error", statusKind === "failed");
     refs.img.hidden = statusKind !== "done";
+    // 转回非完成态时移除旧动画类，保证下次完成时「模糊→清晰」动画能重新触发
+    if (statusKind !== "done") {
+      refs.img.classList.remove("gen-blur-reveal-img");
+    }
     refs.placeholder.style.display = statusKind === "done" ? "none" : "flex";
     if (refs.downloadButton) {
       refs.downloadButton.disabled = statusKind !== "done" || state.generating;
     }
   }
 
-  /** 设置某页卡片图片 */
+  /** 设置某页卡片图片（由占位切换为真图时播放「模糊→清晰」淡入） */
   function setCardImage(index, url) {
     var refs = cardRefs[index];
     if (!refs) return;
+    var wasHidden = refs.img.hidden;
     refs.img.src = url;
     refs.img.hidden = false;
+    if (wasHidden) {
+      refs.img.classList.add("gen-blur-reveal-img");
+    }
     refs.placeholder.style.display = "none";
     if (refs.downloadButton) refs.downloadButton.disabled = false;
   }
@@ -1422,7 +1486,7 @@
     try {
       // 第一步：策划大纲
       setStep(1);
-      showStatus("正在调用文本模型策划笔记大纲...");
+      showRunStatus("");
       var outline = await requestOutline(check.topic, signal, state.pageCount);
       state.outline = outline;
       state.pages = buildPages(outline);
@@ -1430,13 +1494,13 @@
 
       // 第二步：生成每页提示词
       setStep(2);
-      showStatus("正在为每一页生成配图提示词...");
+      showRunStatus("正在为每一页撰写绘图提示词...");
       await assignPrompts(state.pages, outline, signal);
       renderPages(state.pages);
       var countText = state.pages.length === 1
         ? "共 1 张图（仅封面）"
         : "共 " + state.pages.length + " 张图（1 张封面 + " + (state.pages.length - 1) + " 张内容页）";
-      showStatus("提示词准备完成，" + countText + "，开始逐张出图...");
+      showRunStatus(countText + "，开始逐张出图...");
 
       // 第三步：逐张出图
       setStep(3);
@@ -1528,7 +1592,7 @@
       var label = "第 " + (i + 1) + "/" + pages.length + " 张（" + pages[i].name + "）";
       try {
         setCardStatus(i, "generating", "生成中（第 " + (i + 1) + "/" + pages.length + " 张）...");
-        showStatus("正在生成第 " + (i + 1) + "/" + pages.length + " 张：" + pages[i].name);
+        showRunStatus("第 " + (i + 1) + "/" + pages.length + " 张：" + pages[i].name);
         var urls = await generateImageWithRetry(channel, pages[i].finalPrompt, signal, function (msg) {
           setCardStatus(i, "generating", msg);
         }, label);
@@ -1537,13 +1601,17 @@
         setCardImage(i, urls[0]);
         doneCount++;
         // 生成成功后立即自动落盘到本地图片库（失败不影响图片本身，仅记录日志）
-        showStatus("第 " + (i + 1) + "/" + pages.length + " 张完成：" + pages[i].name + "，正在自动保存到图片库...");
+        showRunStatus("正在自动保存到图片库...");
         var saved = await savePageToGallery(pages[i], i, channel);
         if (!saved) saveFailCount++;
-        showStatus("第 " + (i + 1) + "/" + pages.length + " 张完成：" + pages[i].name + (saved ? "（已自动保存到图片库）" : "（自动保存失败，可手动下载）"));
+        showDoneStatus("第 " + (i + 1) + "/" + pages.length + " 张完成" + (saved ? "（已自动保存到图片库）" : "（自动保存失败，可手动下载）"));
+        // 温馨小提示：每张生成成功后底部轻提示
+        if (typeof __APP.showToast === "function") {
+          __APP.showToast("✨ " + label + " 已生成");
+        }
         // 张与张之间留 2 秒间隔，降低触发并发限制的概率
         if (i < pages.length - 1 && pages.slice(i + 1).some(function (p) { return p.status !== "done"; })) {
-          showStatus("第 " + (i + 1) + "/" + pages.length + " 张完成，2 秒后继续下一张...");
+          showRunStatus("休息 2 秒，即将继续下一张...");
           await sleep(2000, signal);
         }
       } catch (error) {
@@ -1595,7 +1663,11 @@
       setCardImage(index, urls[0]);
       // 重新生成成功后同样自动落盘到本地图片库
       var saved = await savePageToGallery(page, index, check.channel);
-      showStatus("「" + page.name + "」重新生成完成" + (saved ? "，已自动保存到图片库。" : "，自动保存失败（可手动下载）。"), false);
+      showDoneStatus("" + (saved ? "，已自动保存到图片库。" : "，自动保存失败（可手动下载）。"), false);
+      // 温馨小提示：重新生成成功后底部轻提示
+      if (typeof __APP.showToast === "function") {
+        __APP.showToast("✨ 「" + page.name + "」已重新生成");
+      }
     } catch (error) {
       if (error && error.name === "AbortError") {
         setCardStatus(index, "failed", "已停止");
@@ -1721,7 +1793,8 @@
   // ==================== 卡片折叠/展开 ====================
 
   /**
-   * 初始化卡片折叠开关：点击按钮切换内容区显示，按钮文字同步变化
+   * 初始化卡片折叠开关：点击标题条任意位置即可展开/收起，右侧的展开/收起按钮同样可用。
+   * 标题条内的其他功能按钮（如「清空」）不受影响，点击它们不会触发折叠。
    * @param {string} toggleId 折叠按钮元素 ID
    * @param {string} bodyId 折叠内容区元素 ID
    */
@@ -1729,11 +1802,21 @@
     var toggle = $(toggleId);
     var body = $(bodyId);
     if (!toggle || !body) return;
-    toggle.addEventListener("click", function () {
+    // 标题条 = 按钮所在的头部容器（包含标题文字 + 右侧按钮组）
+    var head = toggle.closest(".xhs-panel-head") || toggle.parentElement;
+
+    function applyToggle() {
       var willExpand = body.hidden;
       body.hidden = !willExpand;
       toggle.textContent = willExpand ? "收起 ▴" : "展开 ▾";
       toggle.setAttribute("aria-expanded", willExpand ? "true" : "false");
+    }
+
+    // 整个标题条都可点击：命中其他按钮（清空等）时保持其原功能，不触发折叠
+    head.addEventListener("click", function (event) {
+      var clickedButton = event.target.closest("button");
+      if (clickedButton && clickedButton !== toggle) return;
+      applyToggle();
     });
   }
 
@@ -1753,6 +1836,13 @@
     });
     elements.topic.addEventListener("input", persistDraft);
     elements.topic.addEventListener("input", syncTopicClearVisibility);
+    // 快捷键：Ctrl+Enter / Cmd+Enter 快速开始生成（生成中不重复触发）
+    document.addEventListener("keydown", function (event) {
+      if ((event.ctrlKey || event.metaKey) && event.key === "Enter" && !state.generating) {
+        event.preventDefault();
+        startGenerate();
+      }
+    });
     // 风格搜索：输入关键词即时过滤卡片
     elements.styleSearch.addEventListener("input", function () {
       state.styleFilter = elements.styleSearch.value;
@@ -1780,6 +1870,8 @@
       styleImport: $("xhs-style-import"),
       styleImportFile: $("xhs-style-import-file"),
       styleEmpty: $("xhs-style-empty"),
+      styleNew: $("xhs-style-new"),
+      styleForm: $("xhs-style-form"),
       styleName: $("xhs-style-name"),
       stylePrompt: $("xhs-style-prompt"),
       styleSave: $("xhs-style-save"),
