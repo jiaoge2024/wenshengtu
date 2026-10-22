@@ -645,9 +645,33 @@ __APP.isCustomImageModel = function (value) {
   __APP.cleanLlmOutput = function (text) {
     var value = String(text || "").trim();
     if (!value) return value;
-    // 常见思考标记：要么用 <think>...</think> 包裹，要么以“思考过程/思考/分析”等开头
-    var markers = ["思考过程", "分析", "推理"];
+
     var cleaned = value;
+
+    // 1) 剥离成对的 <think>...</think> 思考块（忽略大小写，允许前后空白）
+    cleaned = cleaned.replace(/<think>[\s\S]*?<\/think\s*>/gi, "");
+    cleaned = cleaned.trim();
+
+    // 2) 只有闭合标签没有配对开头（或剥离后仍残留）：保留最后一个 </think> 之后的正式回答
+    var closeIdx = cleaned.toLowerCase().lastIndexOf("</think");
+    if (closeIdx !== -1) {
+      var closeEnd = cleaned.indexOf(">", closeIdx);
+      cleaned = closeEnd === -1 ? "" : cleaned.slice(closeEnd + 1).trim();
+    } else {
+      // 3) 只有 <think> 开头没有闭合：整段都是思考过程，仅保留标签前的内容
+      var openIdx = cleaned.toLowerCase().indexOf("<think");
+      if (openIdx !== -1) {
+        cleaned = cleaned.slice(0, openIdx).trim();
+      }
+    }
+
+    // 剥离思考块后若为空，说明本次返回只有思考没有正式回答，返回空串交给上层报错
+    if (!cleaned) {
+      return "";
+    }
+
+    // 常见思考标记：以“思考过程/思考/分析”等开头时，截取首行之后的正式回答
+    var markers = ["思考过程", "思考", "分析", "推理"];
     for (var i = 0; i < markers.length; i++) {
       var marker = markers[i];
       var idx = cleaned.indexOf(marker);
